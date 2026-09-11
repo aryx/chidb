@@ -5,7 +5,7 @@
 
 include $(TOP)/Makefile.config
 
-CFLAGS += -I$(TOP)/include -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
+CFLAGS += -I$(TOP)/include -I$(TOP)/libs/logs -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
 
 SRCS = main.c shell.c commands.c
 OBJS = $(SRCS:.c=.o)
@@ -13,13 +13,14 @@ OBJS = $(SRCS:.c=.o)
 LIBCHIDB = $(TOP)/src/libchidb/libchidb.a
 LIBCHISQL = $(TOP)/src/libchisql/libchisql.a
 LIBSIMCLIST = $(TOP)/libs/simclist/libsimclist.a
+LIBLOG = $(TOP)/libs/logs/liblog.a
 
 .PHONY: all clean
 
 all: $(TOP)/chidb
 
-$(TOP)/chidb: $(OBJS) $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST)
-	$(CC) -o $@ $(OBJS) $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST)
+$(TOP)/chidb: $(OBJS) $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST) $(LIBLOG)
+	$(CC) -o $@ $(OBJS) $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST) $(LIBLOG)
 
 clean:
 	rm -f *.o *.d

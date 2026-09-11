@@ -47,7 +47,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <strings.h>
-#include <chidb/log.h>
+#include <log.h>
 #include "chidbInt.h"
 #include "btree.h"
 #include "record.h"

@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <chidb/chidb.h>
-#include <chidb/log.h>
+#include <log.h>
 #include "shell.h"
 #include "commands.h"
 

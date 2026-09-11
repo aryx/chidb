@@ -4,7 +4,7 @@
 
 include $(TOP)/Makefile.config
 
-CFLAGS += -I$(TOP)/include -I$(TOP)/libs/simclist -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
+CFLAGS += -I$(TOP)/include -I$(TOP)/libs/simclist -I$(TOP)/libs/logs -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
 
 SRCS = \
   api.c \
@@ -17,8 +17,7 @@ SRCS = \
   dbm-ops.c \
   dbm-cursor.c \
   codegen.c \
-  optimizer.c \
-  log.c
+  optimizer.c
 OBJS = $(SRCS:.c=.o)
 
 .PHONY: all clean

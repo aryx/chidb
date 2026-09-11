@@ -12,8 +12,9 @@ CFLAGS += -DTEST_DIR="\"$(TOP)/tests/\""
 LIBCHIDB = $(TOP)/src/libchidb/libchidb.a
 LIBCHISQL = $(TOP)/src/libchisql/libchisql.a
 LIBSIMCLIST = $(TOP)/libs/simclist/libsimclist.a
+LIBLOG = $(TOP)/libs/logs/liblog.a
 LIBCHECK = $(TOP)/libs/check/libcheck.a
-LIBS = $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST) $(LIBCHECK)
+LIBS = $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST) $(LIBLOG) $(LIBCHECK)
 
 PROGS = check_btree check_dbrecord check_dbm check_pager check_utils
 

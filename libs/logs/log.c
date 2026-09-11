@@ -43,7 +43,7 @@
 #include <string.h>
 #include <time.h>
 
-#include <chidb/log.h>
+#include "log.h"
 
 
 /* Logging level. Set by default to print just errors */

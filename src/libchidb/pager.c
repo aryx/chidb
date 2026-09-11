@@ -58,7 +58,7 @@
 #include <unistd.h>
 #include <stdio.h>
 
-#include <chidb/log.h>
+#include <log.h>
 
 #include "chidbInt.h"
 

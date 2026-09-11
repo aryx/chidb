@@ -11,17 +11,17 @@
 # libs/ holds general-purpose, non-chidb-specific vendored library
 # code (see changes.txt's "internals" entry for when/why).
 #
-# Build layout: libs/simclist, libs/check and src/libchisql are
-# independent leaves; src/libchidb links against libs/simclist and
-# src/libchisql; src/shell links against all three and produces
-# ./chidb at the repo root (see src/shell/Makefile). tests/ links
-# against the same three libraries plus libs/check (a small
+# Build layout: libs/simclist, libs/logs, libs/check and src/libchisql
+# are independent leaves; src/libchidb links against libs/simclist and
+# libs/logs and src/libchisql; src/shell links against all of those
+# and produces ./chidb at the repo root (see src/shell/Makefile).
+# tests/ links against the same libraries plus libs/check (a small
 # vendored reimplementation of the Check unit-testing API - see
 # libs/check/check.h).
 
 include Makefile.config
 
-SUBDIRS = libs/simclist libs/check src/libchisql src/libchidb src/shell
+SUBDIRS = libs/simclist libs/logs libs/check src/libchisql src/libchidb src/shell
 
 .PHONY: all clean check test build-docker visual $(SUBDIRS)
 
@@ -34,8 +34,8 @@ all: $(SUBDIRS)
 $(SUBDIRS):
 	$(MAKE) -C $@ TOP=$(CURDIR)
 
-src/libchidb: libs/simclist src/libchisql
-src/shell: src/libchidb
+src/libchidb: libs/simclist libs/logs src/libchisql
+src/shell: src/libchidb libs/logs
 
 check test: all
 	$(MAKE) -C tests TOP=$(CURDIR) check
