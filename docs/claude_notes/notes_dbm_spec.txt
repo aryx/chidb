@@ -1,0 +1,127 @@
+DBM instruction set spec (from chi.cs.uchicago.edu/chidb/architecture.html)
+============================================================================
+
+Not shipped in the repo (only docs/sigcse2016-chidb.pdf, a conference paper
+with an architecture overview but no per-opcode operand table). Fetched via
+`curl http://chi.cs.uchicago.edu/chidb/architecture.html` (WebFetch/https
+fails on this host with "unable to verify the first certificate"; plain
+curl over http works fine, then piped through `w3m -dump` for text).
+
+General: instruction = opcode + P1,P2,P3 (signed int32) + P4 (nul-terminated
+string, only used by a few ops). Registers are untyped-size, unlimited,
+numbered from 0, default type REG_UNSPECIFIED until written. Cursors index
+into stmt->cursors, numbered from 0. PC starts at 0; Halt or PC running off
+the end of the program (>= endOp) stops execution.
+
+Register manipulation
+----------------------
+Integer   P1=i, P2=r         : r := integer i
+String    P1=len, P2=r, P4=s : r := string s (len is len(s), stored for info;
+                                 not required to truncate P4 at it)
+Null                P2=r     : r := NULL
+SCopy     P1=r1, P2=r2       : r2 := r1 (shallow copy, e.g. same char* pointer
+                                 for strings -- do NOT strdup)
+
+Control flow
+------------
+Eq/Ne/Lt/Le/Gt/Ge  P1=r1, P2=jump addr j, P3=r2:
+    Eq: if r1 == r2, jump to j
+    Ne: if r1 != r2, jump to j
+    Lt: if r2 <  r1, jump to j   <-- NOTE operand order is reversed vs Eq/Ne!
+    Le: if r2 <= r1, jump to j
+    Gt: if r2 >  r1, jump to j
+    Le: if r2 >= r1, jump to j
+  Both registers assumed same type; behavior undefined if either is NULL.
+  Binary register comparison not required.
+Halt   P1=error code n, P4=error message (optional): stop the DBM. Per
+  assignment_dbm.html, don't need to actually thread error code/message
+  through -- just stop the machine (return CHIDB_OK from the handler is
+  enough since chidb_stmt_exec breaks the loop once PC advances past endOp;
+  simplest correct implementation: set stmt->pc = stmt->endOp so the fetch
+  loop's `pc < endOp` condition ends the run of its own accord).
+Noop: do nothing.
+
+Cursor open/close
+-------------------
+OpenRead   P1=cursor c, P2=register holding root page n, P3=ncols:
+  open cursor c for read-only access to the BTree rooted at page n.
+OpenWrite: same, read/write.
+Close      P1=cursor c: close/free cursor c.
+
+Cursor movement (BTree, via a chidb_dbm_cursor_t wrapping a BTree cursor)
+--------------------------------------------------------------------------
+Rewind  P1=c, P2=jump j: point c at first entry; if BTree empty, jump to j.
+Next    P1=c, P2=jump j: advance c to next entry and jump to j; if c was
+   already at the last entry, do nothing (don't jump, and pc just advances
+   normally to the following instruction).
+Prev: same as Next but backwards.
+Seek    P1=c, P2=jump j, P3=register holding key k:
+   move c to the entry with key == k; if index BTree, "key" means IdxKey.
+   If no such entry, jump to j.
+SeekGt/SeekGe/SeekLt/SeekLe: same as Seek but "first entry with key > k" /
+   ">= k" / "largest entry with key < k" / "<= k" respectively; jump to j
+   if no such entry exists.
+IdxGt/IdxGe/IdxLt/IdxLe  P1=c, P2=jump j, P3=register holding key k:
+   cursor c points into an index BTree at an (IdxKey,PKey) entry; if
+   IdxKey > k (resp >=, <, <=) jump to j, else do nothing (cursor NOT
+   moved by these -- they're pure tests, unlike the Seek* family which
+   moves the cursor. This is used in codegen for `WHERE indexedcol OP val`
+   loop termination tests).
+
+Cursor access
+-------------
+Column  P1=c, P2=column n (0-based), P3=register r: r := value of column n
+   of the record cursor c currently points to.
+Key     P1=c, P2=register r (P3 unused): r := key of entry cursor c points to.
+   Confirmed against testing.html's worked example: `Key 0 1 _ _` (cursor 0,
+   register 1, P3/P4 both `_`) -- architecture.html's own HTML table renders
+   ambiguously here (w3m -dump collapses the P2/P3 column boundary when a
+   cell spans them), the worked example is what settled it. Originally got
+   this wrong as P3 on the first pass; fixed after cross-checking.
+IdxPKey P1=c, P2=register r (P3 unused, by the same "cursor, register" shape
+   as Key -- not independently confirmed by a worked example, but
+   consistent with it): cursor c is on an index entry (IdxKey,PKey); r := PKey.
+
+Database record instructions
+------------------------------
+MakeRecord P1=r1, P2=n, P3=r2: pack registers r1..r1+n-1 into a DBRecord,
+   store (packed representation, i.e. use chidb_DBRecord_pack after building
+   via chidb_DBRecord_create_empty/append*/finalize) in register r2 as
+   REG_BINARY (bytes + nbytes = packed_len).
+ResultRow  P1=r, P2=n: signal a result row made of registers r..r+n-1.
+   Implementation: set stmt->startRR=r, stmt->nRR=n, and the handler must
+   return a value that makes chidb_stmt_exec stop the loop and report
+   CHIDB_ROW upward -- but chidb_stmt_exec's loop only breaks on rc !=
+   CHIDB_OK, and then converts (CHIDB_OK|CHIDB_DONE) => CHIDB_DONE. So the
+   ResultRow handler must return CHIDB_ROW (not CHIDB_OK) to (a) break the
+   loop and (b) survive the "if (rc == CHIDB_OK || rc == CHIDB_DONE)
+   rc = CHIDB_DONE" rewrite at the bottom of chidb_stmt_exec, since CHIDB_ROW
+   is neither of those two values. Confirmed by reading dbm.c: this is the
+   ONLY way CHIDB_ROW can flow out of chidb_stmt_exec given its current
+   code, so this is a hard requirement, not a design choice.
+
+Insertion
+---------
+Insert     P1=c, P2=r1 (register holding a DBRecord), P3=r2 (register
+   holding key k): insert (k, v) into the table BTree pointed at by cursor c.
+IdxInsert  P1=c, P2=r1 (IdxKey register), P3=r2 (PKey register): insert
+   (IdxKey,PKey) into the index BTree pointed at by cursor c.
+
+BTree creation
+--------------
+CreateTable  P1=register r: create a new table BTree, r := its root page.
+CreateIndex: same, but index BTree.
+
+Notes carried over from dbm-ops.c's existing stub comments (already written
+by a previous student/author, kept accurate against the spec above):
+  IdxGt/IdxGe/IdxLt/IdxLe: p1=cursor, p2=jump addr, p3=register w/ key k;
+    matches spec above.
+  IdxPKey: p1=cursor, p2=register; matches (comment said p2 but spec/table
+    header says "P1=cursor... A register r" without naming which of
+    P2/P3 -- going with the worked codegen convention used elsewhere in
+    this repo's op comments, P2, i.e. same column as OpenRead's register
+    operand).
+  IdxInsert: p1=cursor, p2=IdxKey register, p3=PKey register (existing
+    comment has a copy-paste typo labelling both p2 and p3 as "p2" -- the
+    intent, and what the P1..P3 table in architecture.html actually says,
+    is p2=IdxKey, p3=PKey).

@@ -68,5 +68,13 @@ void chidb_BTree_stringPrinter(BTreeNode *btn, BTreeCell *btc);
 
 FILE *copy(const char *from, const char *to);
 
+/* claude: schema helpers, see chidb_schema_item_t in chidbInt.h and their
+ * implementation in util.c for details. */
+int chidb_schema_load(chidb *db);
+void chidb_schema_free(chidb_schema_item_t *schema);
+chidb_schema_item_t *chidb_schema_find_table(chidb *db, const char *name);
+chidb_schema_item_t *chidb_schema_find_index_on(chidb *db, const char *table, const char *column);
+chidb_key_t chidb_schema_next_key(chidb *db);
+
 
 #endif /*UTIL_H_*/

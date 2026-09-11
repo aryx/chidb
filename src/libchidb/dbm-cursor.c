@@ -38,7 +38,221 @@
  */
 
 
+#include <stdlib.h>
+#include <string.h>
+
 #include "dbm-cursor.h"
 
-/* Your code goes here */
+/* claude: growable array used only while collecting a B-Tree's in-order
+ * entry sequence in collect() below; see dbm-cursor.h for why. */
+typedef struct
+{
+    chidb_key_t *keys;
+    uint8_t **data;
+    uint16_t *sizes;
+    chidb_key_t *pkeys;
+    uint32_t n;
+    uint32_t cap;
+} collector_t;
+
+static void collector_push(collector_t *c, chidb_key_t key, uint8_t *data, uint16_t size, chidb_key_t pkey)
+{
+    if (c->n == c->cap)
+    {
+        c->cap = c->cap ? c->cap * 2 : 8;
+        c->keys = realloc(c->keys, c->cap * sizeof(chidb_key_t));
+        c->data = realloc(c->data, c->cap * sizeof(uint8_t *));
+        c->sizes = realloc(c->sizes, c->cap * sizeof(uint16_t));
+        c->pkeys = realloc(c->pkeys, c->cap * sizeof(chidb_key_t));
+    }
+    c->keys[c->n] = key;
+    c->data[c->n] = data;
+    c->sizes[c->n] = size;
+    c->pkeys[c->n] = pkey;
+    c->n++;
+}
+
+static int collect(BTree *bt, npage_t npage, collector_t *out)
+{
+    BTreeNode *btn;
+    int rc = chidb_Btree_getNodeByPage(bt, npage, &btn);
+    if (rc != CHIDB_OK)
+        return rc;
+
+    switch (btn->type)
+    {
+    case PGTYPE_TABLE_LEAF:
+        for (ncell_t i = 0; i < btn->n_cells; i++)
+        {
+            BTreeCell c;
+            chidb_Btree_getCell(btn, i, &c);
+            uint8_t *copy = malloc(c.fields.tableLeaf.data_size);
+            memcpy(copy, c.fields.tableLeaf.data, c.fields.tableLeaf.data_size);
+            collector_push(out, c.key, copy, c.fields.tableLeaf.data_size, 0);
+        }
+        break;
+
+    case PGTYPE_TABLE_INTERNAL:
+        for (ncell_t i = 0; i < btn->n_cells; i++)
+        {
+            BTreeCell c;
+            chidb_Btree_getCell(btn, i, &c);
+            collect(bt, c.fields.tableInternal.child_page, out);
+        }
+        collect(bt, btn->right_page, out);
+        break;
+
+    case PGTYPE_INDEX_LEAF:
+        for (ncell_t i = 0; i < btn->n_cells; i++)
+        {
+            BTreeCell c;
+            chidb_Btree_getCell(btn, i, &c);
+            collector_push(out, c.key, NULL, 0, c.fields.indexLeaf.keyPk);
+        }
+        break;
+
+    case PGTYPE_INDEX_INTERNAL:
+        for (ncell_t i = 0; i < btn->n_cells; i++)
+        {
+            BTreeCell c;
+            chidb_Btree_getCell(btn, i, &c);
+            collect(bt, c.fields.indexInternal.child_page, out);
+            collector_push(out, c.key, NULL, 0, c.fields.indexInternal.keyPk);
+        }
+        collect(bt, btn->right_page, out);
+        break;
+    }
+
+    chidb_Btree_freeMemNode(bt, btn);
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_open(BTree *bt, npage_t root, chidb_dbm_cursor_type_t type, chidb_dbm_cursor_t *cursor)
+{
+    collector_t out = {0};
+    int rc = collect(bt, root, &out);
+    if (rc != CHIDB_OK)
+        return rc;
+
+    BTreeNode *btn;
+    rc = chidb_Btree_getNodeByPage(bt, root, &btn);
+    if (rc != CHIDB_OK)
+        return rc;
+    cursor->is_index = (btn->type == PGTYPE_INDEX_INTERNAL || btn->type == PGTYPE_INDEX_LEAF);
+    chidb_Btree_freeMemNode(bt, btn);
+
+    cursor->type = type;
+    cursor->bt = bt;
+    cursor->root = root;
+    cursor->keys = out.keys;
+    cursor->data = out.data;
+    cursor->sizes = out.sizes;
+    cursor->pkeys = out.pkeys;
+    cursor->n = out.n;
+    cursor->pos = -1;
+
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_close(chidb_dbm_cursor_t *cursor)
+{
+    if (!cursor->is_index)
+        for (uint32_t i = 0; i < cursor->n; i++)
+            free(cursor->data[i]);
+    free(cursor->keys);
+    free(cursor->data);
+    free(cursor->sizes);
+    free(cursor->pkeys);
+    cursor->type = CURSOR_UNSPECIFIED;
+
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_rewind(chidb_dbm_cursor_t *cursor, bool *empty)
+{
+    *empty = (cursor->n == 0);
+    cursor->pos = *empty ? -1 : 0;
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_next(chidb_dbm_cursor_t *cursor, bool *moved)
+{
+    *moved = (cursor->pos + 1 < (int32_t) cursor->n);
+    if (*moved)
+        cursor->pos++;
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_prev(chidb_dbm_cursor_t *cursor, bool *moved)
+{
+    *moved = (cursor->pos - 1 >= 0);
+    if (*moved)
+        cursor->pos--;
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_seekEq(chidb_dbm_cursor_t *cursor, chidb_key_t key, bool *found)
+{
+    for (uint32_t i = 0; i < cursor->n; i++)
+        if (cursor->keys[i] == key)
+        {
+            cursor->pos = i;
+            *found = true;
+            return CHIDB_OK;
+        }
+    *found = false;
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_seekGt(chidb_dbm_cursor_t *cursor, chidb_key_t key, bool *found)
+{
+    for (uint32_t i = 0; i < cursor->n; i++)
+        if (cursor->keys[i] > key)
+        {
+            cursor->pos = i;
+            *found = true;
+            return CHIDB_OK;
+        }
+    *found = false;
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_seekGe(chidb_dbm_cursor_t *cursor, chidb_key_t key, bool *found)
+{
+    for (uint32_t i = 0; i < cursor->n; i++)
+        if (cursor->keys[i] >= key)
+        {
+            cursor->pos = i;
+            *found = true;
+            return CHIDB_OK;
+        }
+    *found = false;
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_seekLt(chidb_dbm_cursor_t *cursor, chidb_key_t key, bool *found)
+{
+    for (int32_t i = (int32_t) cursor->n - 1; i >= 0; i--)
+        if (cursor->keys[i] < key)
+        {
+            cursor->pos = i;
+            *found = true;
+            return CHIDB_OK;
+        }
+    *found = false;
+    return CHIDB_OK;
+}
+
+int chidb_Cursor_seekLe(chidb_dbm_cursor_t *cursor, chidb_key_t key, bool *found)
+{
+    for (int32_t i = (int32_t) cursor->n - 1; i >= 0; i--)
+        if (cursor->keys[i] <= key)
+        {
+            cursor->pos = i;
+            *found = true;
+            return CHIDB_OK;
+        }
+    *found = false;
+    return CHIDB_OK;
+}
 

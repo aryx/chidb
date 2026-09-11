@@ -1,0 +1,56 @@
+A simple chidb session
+=======================
+
+This is a real, unedited transcript (build from a clean checkout, then run
+the demo below) -- not a mock-up. `chidb` reads SQL statements from a file
+or stdin and, for SELECT, prints one line per result row with columns
+separated by "|".
+
+    $ ./configure && make
+    $ ./chidb /tmp/library.cdb < demos/library.sql
+
+demos/library.sql contains:
+
+    CREATE TABLE books(id INTEGER PRIMARY KEY, title TEXT, author TEXT, year INTEGER);
+    INSERT INTO books VALUES(1, "The Pragmatic Programmer", "Hunt & Thomas", 1999);
+    INSERT INTO books VALUES(2, "Structure and Interpretation of Computer Programs", "Abelson & Sussman", 1985);
+    INSERT INTO books VALUES(3, "The C Programming Language", "Kernighan & Ritchie", 1978);
+    INSERT INTO books VALUES(4, "Design Patterns", "Gamma et al.", 1994);
+    SELECT * FROM books;
+    SELECT title FROM books WHERE year < 1990;
+    SELECT title, author FROM books WHERE id = 3;
+    CREATE INDEX idxYear ON books(year);
+    SELECT title FROM books WHERE year = 1994;
+
+And produces exactly this output (CREATE TABLE/INSERT/CREATE INDEX print
+nothing -- they only run their DBM program for effect, not rows):
+
+    1|The Pragmatic Programmer|Hunt & Thomas|1999
+    2|Structure and Interpretation of Computer Programs|Abelson & Sussman|1985
+    3|The C Programming Language|Kernighan & Ritchie|1978
+    4|Design Patterns|Gamma et al.|1994
+    Structure and Interpretation of Computer Programs
+    The C Programming Language
+    The C Programming Language|Kernighan & Ritchie
+    Design Patterns
+
+/tmp/library.cdb is now a real, well-formed chidb file: page 1 is the
+schema table (one row for "books", one for "idxYear"), page 2 is the
+"books" table B-Tree, and page 3 is the "idxYear" index B-Tree. It can
+also be queried again later, in a fresh invocation of the shell, and with
+`.headers on` to label columns:
+
+    $ ./chidb /tmp/library.cdb
+    chidb> SELECT title FROM books WHERE year >= 1994;
+    The Pragmatic Programmer
+    Design Patterns
+    chidb> .headers on
+    chidb> SELECT title, year FROM books WHERE year >= 1994;
+    title|year
+    The Pragmatic Programmer|1999
+    Design Patterns|1994
+
+(Rows come back in ascending order of the table's primary key, "id" --
+1 then 4 here -- since these SELECTs aren't backed by an index on "year";
+see the "Not implemented" list in
+docs/claude_notes/plan_chidb_implementation.md.)

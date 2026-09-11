@@ -52,4 +52,11 @@ char* chidb_stmt_rr_str(chidb_stmt *stmt, char sep);
 int chidb_stmt_rr_print(chidb_stmt *stmt, char sep);
 int chidb_stmt_print(chidb_stmt *stmt);
 
+/* claude: exposed so dbm-ops.c can grow the register/cursor arrays
+ * on demand when an instruction addresses a register/cursor beyond the
+ * statement's current default allocation (see DEFAULT_REG_SIZE/
+ * DEFAULT_CUR_SIZE in dbm-types.h). Defined in dbm.c. */
+int realloc_reg(chidb_stmt *stmt, uint32_t size);
+int realloc_cur(chidb_stmt *stmt, uint32_t size);
+
 #endif /* DBM_H_ */

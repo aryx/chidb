@@ -259,7 +259,12 @@ struct chidb_stmt
      * per operation */
     bool explain;
 
-    /* Additional fields go here */
+    /* claude: set by codegen.c when the compiled statement is a
+     * CREATE TABLE/CREATE INDEX, so chidb_step() (api.c) knows to reload
+     * db->schema after such a statement finishes executing -- stmt->sql
+     * isn't a safe way to recover the original statement type here since
+     * chidb_prepare() frees the AST right after codegen returns. */
+    bool schema_change;
 };
 
 /* Handy macros for checking whether we're accessing a correct register, cursor, or DBM address */

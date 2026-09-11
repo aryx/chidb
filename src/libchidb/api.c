@@ -63,18 +63,23 @@ int chidb_open(const char *file, chidb **db)
     *db = malloc(sizeof(chidb));
     if (*db == NULL)
         return CHIDB_ENOMEM;
-    chidb_Btree_open(file, *db, &(*db)->bt);
+    (*db)->schema = NULL;
 
-    /* Additional initialization code goes here */
-    return CHIDB_OK;
+    int rc = chidb_Btree_open(file, *db, &(*db)->bt);
+    if (rc != CHIDB_OK)
+    {
+        free(*db);
+        return rc;
+    }
+
+    return chidb_schema_load(*db);
 }
 
 int chidb_close(chidb *db)
 {
+    chidb_schema_free(db->schema);
     chidb_Btree_close(db->bt);
     free(db);
-
-    /* Additional cleanup code goes here */
 
     return CHIDB_OK;
 }
@@ -132,7 +137,12 @@ int chidb_step(chidb_stmt *stmt)
 		}
 	}
 	else
-		return chidb_stmt_exec(stmt);
+	{
+		int rc = chidb_stmt_exec(stmt);
+		if (rc == CHIDB_DONE && stmt->schema_change)
+			chidb_schema_load(stmt->db);
+		return rc;
+	}
 }
 
 int chidb_finalize(chidb_stmt *stmt)

@@ -1,0 +1,10 @@
+CREATE TABLE books(id INTEGER PRIMARY KEY, title TEXT, author TEXT, year INTEGER);
+INSERT INTO books VALUES(1, "The Pragmatic Programmer", "Hunt & Thomas", 1999);
+INSERT INTO books VALUES(2, "Structure and Interpretation of Computer Programs", "Abelson & Sussman", 1985);
+INSERT INTO books VALUES(3, "The C Programming Language", "Kernighan & Ritchie", 1978);
+INSERT INTO books VALUES(4, "Design Patterns", "Gamma et al.", 1994);
+SELECT * FROM books;
+SELECT title FROM books WHERE year < 1990;
+SELECT title, author FROM books WHERE id = 3;
+CREATE INDEX idxYear ON books(year);
+SELECT title FROM books WHERE year = 1994;

@@ -1,0 +1,76 @@
+chidb file/record format notes (from chi.cs.uchicago.edu/chidb/fileformat.html)
+================================================================================
+
+Only the parts relevant to writing dbm-ops.c/codegen.c/util.c that aren't
+obvious from btree.h's constants (which already fully cover cell/page
+layout -- btree.c is a finished reference implementation, see CLAUDE.md).
+
+Datatypes in DB records (record.h's DBRecord, SQL_* constants in chidbInt.h
+-- NOT the same numbering as the file-format table below at the header-byte
+level, record.c already implements pack/unpack correctly, this is just
+context):
+  header byte value 0            -> NULL   (no data stored)
+  header byte value 1  (varint8) -> BYTE     = int8   (SQL_INTEGER_1BYTE)
+  header byte value 2  (varint8) -> SMALLINT = int16  (SQL_INTEGER_2BYTE)
+  header byte value 4  (varint8) -> INTEGER  = int32  (SQL_INTEGER_4BYTE)
+  header value 2n+13   (varint32)-> TEXT, raw-string(n) (SQL_TEXT + 2n)
+This matches chidb_column_type's public API table in chidb.h/architecture.html
+exactly (0/1/2/4/2n+13) -- so `chidb_DBRecord_getType` return value is
+directly usable as the chidb_column_type() result for the public API.
+
+Primary key convention: the column that is the table's INTEGER PRIMARY KEY
+is stored as the BTree cell's Key, and is *also* present in the DBRecord's
+field list as a NULL placeholder (position preserved so field indices still
+line up 1:1 with CREATE TABLE column order). This matters for codegen: when
+generating a Column op for the PK column, you can't just read it out of the
+record (it's NULL there) -- either special-case it to emit a Key op instead
+of a Column op when that column index is the primary key, or (as chidb's
+own tests do, see worked example below) always order SELECT * columns as
+[Key op for PK column, Column op for every other column].
+
+Schema table: chidb file always has a table BTree rooted at page 1 storing
+the schema. One record per table/index, 5 columns, all in this order:
+  0: TEXT "table"|"index"        (schema item type)
+  1: TEXT name                   (table or index name)
+  2: TEXT assoc. table name      (== name for a table; indexed table for an index)
+  3: INTEGER root page
+  4: TEXT the exact CREATE TABLE/CREATE INDEX SQL statement used to create it
+Load this with a table-scan DBM-style loop (or directly via
+chidb_Btree_getNodeByPage/chidb_Btree_getCell walking the tree, no need to
+build a full cursor for this -- it happens once in chidb_open, before any
+DBM even exists) and re-parse column 4's SQL text with the existing
+chisql `yyparse`/parser entry point to recover the table's column list and
+types, rather than re-deriving column info from anywhere else. That's the
+approach assignment_codegen.html step 1 explicitly recommends.
+
+Worked example DBM program (from testing.html), canonical codegen output for
+`SELECT * FROM courses` where courses = (code INTEGER PRIMARY KEY, name TEXT,
+prof BYTE, dept INTEGER), root page 2:
+
+    Integer      2  0  _  _        ; r0 := 2 (root page)
+    OpenRead     0  0  4  _        ; cursor 0 := open table at page r0, 4 cols
+    Rewind       0  9  _  _        ; if empty, jump past Close/Halt to end (op 9 = Close)
+    Key          0  1  _  _        ; r1 := key (== code, the PK)          <- loop start (op 3)
+    Column       0  1  2  _        ; r2 := col 1 (name)
+    Column       0  2  3  _        ; r3 := col 2 (prof)
+    Column       0  3  4  _        ; r4 := col 3 (dept)
+    ResultRow    1  4  _  _        ; yield r1..r4 (4 cols total, matches nCols)
+    Next         0  3  _  _        ; advance cursor, jump back to op 3 (Key) if there was a next row
+    Close        0  _  _  _
+    Halt         _  _  _  _
+
+Key facts this example nails down for codegen.c:
+  - OpenRead's P3 (ncols) is the table's *total* column count (4 here),
+    not the number of columns being selected.
+  - Register numbering starts at 0 for the root-page Integer, then walks
+    up sequentially: r1 is reserved for the PK/Key column, r2..r(ncols) for
+    the remaining columns in schema order. ResultRow's r1 count matches
+    the SELECT's column list, which for `SELECT *` is all of them.
+  - Rewind's jump target is the Close instruction (i.e., "skip the whole
+    loop body + Next, land right on Close/Halt" when the table is empty).
+  - Next's jump target is back to the *first* instruction inside the loop
+    body (here, the Key op), not to Rewind.
+  - No explicit loop-exit register/flag: Next simply falls through to the
+    next instruction (Close) when there is nothing left to advance to,
+    since "Next ... does nothing" per architecture.html when already at
+    the last entry -- so PC naturally continues past the Next into Close.

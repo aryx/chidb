@@ -40,10 +40,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <strings.h>
 #include <ctype.h>
 #include "chidbInt.h"
 #include "util.h"
 #include "record.h"
+#include "dbm-cursor.h"
 
 /*
 ** Read or write a four-byte big-endian integer value.
@@ -223,6 +225,100 @@ FILE *copy(const char *from, const char *to)
     return tof;
 }
 
+
+/* claude: schema loading (assignment_codegen.html step 1). The schema
+ * table is just a regular table B-Tree rooted at page 1, so we reuse the
+ * DBM cursor's materialize-and-sort traversal instead of walking BTree
+ * cells by hand. */
+void chidb_schema_free(chidb_schema_item_t *schema)
+{
+    while (schema)
+    {
+        chidb_schema_item_t *next = schema->next;
+        free(schema->type);
+        free(schema->name);
+        free(schema->table_name);
+        free(schema->sql);
+        free(schema);
+        schema = next;
+    }
+}
+
+int chidb_schema_load(chidb *db)
+{
+    chidb_schema_free(db->schema);
+    db->schema = NULL;
+
+    chidb_dbm_cursor_t cur;
+    int rc = chidb_Cursor_open(db->bt, 1, CURSOR_READ, &cur);
+    if (rc != CHIDB_OK)
+        return rc;
+
+    chidb_schema_item_t *tail = NULL;
+
+    for (uint32_t i = 0; i < cur.n; i++)
+    {
+        DBRecord *dbr;
+        chidb_DBRecord_unpack(&dbr, cur.data[i]);
+
+        chidb_schema_item_t *item = malloc(sizeof(chidb_schema_item_t));
+        chidb_DBRecord_getString(dbr, 0, &item->type);
+        chidb_DBRecord_getString(dbr, 1, &item->name);
+        chidb_DBRecord_getString(dbr, 2, &item->table_name);
+        int32_t root;
+        chidb_DBRecord_getInt32(dbr, 3, &root);
+        item->root_page = (npage_t) root;
+        chidb_DBRecord_getString(dbr, 4, &item->sql);
+        item->key = cur.keys[i];
+        item->next = NULL;
+
+        if (tail)
+            tail->next = item;
+        else
+            db->schema = item;
+        tail = item;
+
+        chidb_DBRecord_destroy(dbr);
+    }
+
+    chidb_Cursor_close(&cur);
+    return CHIDB_OK;
+}
+
+chidb_schema_item_t *chidb_schema_find_table(chidb *db, const char *name)
+{
+    for (chidb_schema_item_t *item = db->schema; item; item = item->next)
+        if (strcmp(item->type, "table") == 0 && strcasecmp(item->name, name) == 0)
+            return item;
+    return NULL;
+}
+
+chidb_schema_item_t *chidb_schema_find_index_on(chidb *db, const char *table, const char *column)
+{
+    for (chidb_schema_item_t *item = db->schema; item; item = item->next)
+    {
+        if (strcmp(item->type, "index") != 0 || strcasecmp(item->table_name, table) != 0)
+            continue;
+
+        chisql_statement_t *stmt;
+        if (chisql_parser(item->sql, &stmt) != CHIDB_OK)
+            continue;
+        bool matches = strcasecmp(stmt->stmt.create->index->column_name, column) == 0;
+        free(stmt);
+        if (matches)
+            return item;
+    }
+    return NULL;
+}
+
+chidb_key_t chidb_schema_next_key(chidb *db)
+{
+    chidb_key_t max = 0;
+    for (chidb_schema_item_t *item = db->schema; item; item = item->next)
+        if (item->key > max)
+            max = item->key;
+    return max + 1;
+}
 
 int chidb_tokenize(char *str, char ***tokens)
 {

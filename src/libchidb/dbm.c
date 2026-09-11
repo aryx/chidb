@@ -74,6 +74,7 @@ int chidb_stmt_init(chidb_stmt *stmt, chidb *db)
     stmt->db = db;
     stmt->sql = NULL;
     stmt->explain = false;
+    stmt->schema_change = false;
 
     /* The program starts running in instruction 0 */
     stmt->pc = 0;

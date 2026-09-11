@@ -76,14 +76,29 @@ typedef struct BTree BTree;
 
   /* code */
 
-/* A chidb database is initially only a BTree.
- * This presuposes that only the btree.c module has been implemented.
- * If other parts of the chidb Architecture are implemented, the
- * chidb struct may have to be modified.
- */
+/* claude: one entry per row of the schema table (page 1), loaded into
+ * memory by chidb_schema_load() (see util.c) so codegen/the optimizer can
+ * look up a table/index's root page and column list without re-walking
+ * the B-Tree on every lookup. `key` is the row's own key in the schema
+ * table, kept around so a fresh CREATE TABLE/INDEX can pick an unused one
+ * (see chidb_schema_next_key()). */
+typedef struct chidb_schema_item
+{
+    char *type;        /* "table" or "index" */
+    char *name;
+    char *table_name;  /* associated table name (== name, for a table) */
+    npage_t root_page;
+    char *sql;         /* the CREATE TABLE/CREATE INDEX statement that created it */
+    chidb_key_t key;
+    struct chidb_schema_item *next;
+} chidb_schema_item_t;
+
+/* A chidb database is a BTree plus the in-memory schema loaded from it
+ * (see util.c's chidb_schema_* functions). */
 struct chidb
 {
     BTree   *bt;
+    chidb_schema_item_t *schema;
 };
 
 #endif /*CHIDBINT_H_*/
