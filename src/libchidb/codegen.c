@@ -398,8 +398,14 @@ static int codegen_create_index(chidb_stmt *stmt, Index_t *index, const char *sq
 
     chisql_statement_t *parsed;
     Column_t *columns = table_columns(tbl, &parsed);
-    int col_idx = column_index_by_name(columns, index->column_name, NULL);
-    if (col_idx < 0)
+    enum data_type coltype;
+    int col_idx = column_index_by_name(columns, index->column_name, &coltype);
+    /* claude: fileformat.html/assignment_opt.html: "Indexes can only be
+     * created for unsigned 4-byte integer unique fields" -- without this
+     * check, indexing a TEXT column silently builds a corrupt index
+     * (IdxInsert reads a REG_STRING register's .value.i, which is really
+     * the low bits of a pointer, as if it were the intended integer key). */
+    if (col_idx < 0 || coltype != TYPE_INT)
     {
         free(parsed);
         return CHIDB_EINVALIDSQL;
@@ -703,17 +709,35 @@ static bool resolve_join_column_cb(void *ctx0, ColumnReference_t *ref, RCol *out
  * at the top (NULL if everything was pushed, or if the optimizer never
  * touched this query in the first place).
  *
- * Compiles to a nested-loop join: cursor 0 = left table, cursor 1 =
- * right table. A condition pushed to the LEFT side is checked once per
- * outer-loop row, skipping straight past the entire inner loop when it
- * fails -- the actual performance point of pushing, in this executor.
- * A condition pushed to the RIGHT side, the natural-join equality tests
- * themselves, and whatever's left at the top are all checked once per
- * (outer,inner) pair, same as before pushing existed. Every kind of
- * check is a negated jump straight to the relevant Next instruction,
- * same technique as the single-table scan uses. Using an index for
- * either side's scan is not implemented -- see
- * docs/claude_notes/plan_chidb_implementation.md. */
+ * Cursor 0 = left table, cursor 1 = right table, cursor 2/3 = a
+ * transient index cursor used only while seeking cursor 0/1 (see below).
+ * Each side is independently compiled as either:
+ *   - SCAN: the side's whole pushed condition (0 or more conjuncts) is
+ *     checked as a per-row filter inside a Rewind/Next loop, same as a
+ *     single-table scan.
+ *   - SEEK (assignment_opt.html's index point, extended from
+ *     codegen_select_indexed to a join side): if the side's pushed
+ *     condition is exactly one equality on a column that has an index,
+ *     seek that index for the (unique) matching row instead of scanning
+ *     -- no loop at all for that side, since there's at most one row.
+ * A SEEK side's result doesn't depend on the other side's current row
+ * (it's driven by a compile-time literal), so it's computed exactly
+ * once, before any loop runs, and its cursor is simply never Rewind/Next
+ * again -- the natural-join equality check against it (and the other
+ * side's own filter/output reads) just keeps reading whatever row it
+ * landed on. This turns "both sides indexed" into a single check with
+ * no loop at all, "one side indexed" into one seek per outer row instead
+ * of a full inner scan, and "neither indexed" into the original nested
+ * Rewind/Next loop.
+ *
+ * Every cursor actually needed is opened up front, before any Seek or
+ * Rewind runs, specifically so that every possible "no more rows" event
+ * -- an index miss, an empty table on a SCAN side -- can share one
+ * cursor-closing tail at the very end: by construction, nothing that
+ * tail closes is ever still unopened at the point something jumps to it.
+ * Every check (natural-join equality, a SCAN side's filters, the
+ * top-level leftover conjuncts) is a negated jump, same technique as the
+ * single-table scan uses. */
 static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t *expr_list, Condition_t *cond)
 {
     chidb *db = stmt->db;
@@ -838,36 +862,102 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     }
 
     /* From here on nothing else can fail, so it's safe to start emitting. */
-    int32_t r_root1 = 0, r_root2 = 1;
-    int32_t r_lit_base = 2;
-    int32_t r_tmp_a = r_lit_base + n1 + n2 + nt;
-    int32_t r_tmp_b = r_tmp_a + 1;
-    int32_t r_out0 = r_tmp_b + 1;
+
+    /* assignment_opt.html's index point, extended to either side of a
+     * join: a side seeks instead of scanning iff its pushed condition is
+     * exactly one equality on an indexed column. */
+    chidb_schema_item_t *idx1 = (n1 == 1 && side1_cmps[0].op == Op_Ne)
+                                     ? chidb_schema_find_index_on(db, name1, column_name_at(cols1, side1_cmps[0].col.idx))
+                                     : NULL;
+    chidb_schema_item_t *idx2 = (n2 == 1 && side2_cmps[0].op == Op_Ne)
+                                     ? chidb_schema_find_index_on(db, name2, column_name_at(cols2, side2_cmps[0].col.idx))
+                                     : NULL;
+    bool seek1 = (idx1 != NULL), seek2 = (idx2 != NULL);
+    int n1_scan = seek1 ? 0 : n1; /* a SEEK side's one conjunct is fully
+                                   * consumed by the seek itself */
+    int n2_scan = seek2 ? 0 : n2;
+
+    int next_reg = 0;
+    int32_t r_idxroot1 = seek1 ? next_reg++ : -1;
+    int32_t r_root1 = next_reg++;
+    int32_t r_idxroot2 = seek2 ? next_reg++ : -1;
+    int32_t r_root2 = next_reg++;
+    int32_t r_lit1 = seek1 ? next_reg++ : -1;
+    int32_t r_pkey1 = seek1 ? next_reg++ : -1;
+    int32_t r_lit2 = seek2 ? next_reg++ : -1;
+    int32_t r_pkey2 = seek2 ? next_reg++ : -1;
+    int32_t r_lit_base = next_reg;
+    next_reg += n1_scan + n2_scan + nt;
+    int32_t r_tmp_a = next_reg++;
+    int32_t r_tmp_b = next_reg++;
+    int32_t r_out0 = next_reg;
+    next_reg += nout;
 
     int pc = 0;
+
+    /* Open every cursor that will be used, before any Seek/Rewind --
+     * see the file comment for why. */
+    if (seek1)
+    {
+        emit(stmt, &pc, Op_Integer, (int32_t) idx1->root_page, r_idxroot1, 0, NULL);
+        emit(stmt, &pc, Op_OpenRead, 2, r_idxroot1, 0, NULL);
+    }
     emit(stmt, &pc, Op_Integer, (int32_t) tbl1->root_page, r_root1, 0, NULL);
     emit(stmt, &pc, Op_OpenRead, 0, r_root1, ncols1, NULL);
+    if (seek2)
+    {
+        emit(stmt, &pc, Op_Integer, (int32_t) idx2->root_page, r_idxroot2, 0, NULL);
+        emit(stmt, &pc, Op_OpenRead, 3, r_idxroot2, 0, NULL);
+    }
     emit(stmt, &pc, Op_Integer, (int32_t) tbl2->root_page, r_root2, 0, NULL);
     emit(stmt, &pc, Op_OpenRead, 1, r_root2, ncols2, NULL);
 
-    emit_filter_literals(stmt, &pc, side1_cmps, n1, r_lit_base);
-    emit_filter_literals(stmt, &pc, side2_cmps, n2, r_lit_base + n1);
-    emit_filter_literals(stmt, &pc, top_cmps, nt, r_lit_base + n1 + n2);
+    /* Addresses whose failure means "zero rows, close everything opened
+     * above, and stop" -- always safe, since every cursor is open by now. */
+    int *patch_die = malloc(sizeof(int) * 4);
+    int npatch_die = 0;
 
-    int npatch_max = npairs + n1 + n2 + nt + 1;
+    if (seek1)
+    {
+        emit_literal(stmt, &pc, side1_cmps[0].lit, r_lit1);
+        patch_die[npatch_die++] = emit(stmt, &pc, Op_Seek, 2, -1, r_lit1, NULL);
+        emit(stmt, &pc, Op_IdxPKey, 2, r_pkey1, 0, NULL);
+        patch_die[npatch_die++] = emit(stmt, &pc, Op_Seek, 0, -1, r_pkey1, NULL);
+    }
+    if (seek2)
+    {
+        emit_literal(stmt, &pc, side2_cmps[0].lit, r_lit2);
+        patch_die[npatch_die++] = emit(stmt, &pc, Op_Seek, 3, -1, r_lit2, NULL);
+        emit(stmt, &pc, Op_IdxPKey, 3, r_pkey2, 0, NULL);
+        patch_die[npatch_die++] = emit(stmt, &pc, Op_Seek, 1, -1, r_pkey2, NULL);
+    }
+
+    emit_filter_literals(stmt, &pc, side1_cmps, n1_scan, r_lit_base);
+    emit_filter_literals(stmt, &pc, side2_cmps, n2_scan, r_lit_base + n1_scan);
+    emit_filter_literals(stmt, &pc, top_cmps, nt, r_lit_base + n1_scan + n2_scan);
+
+    int npatch_max = npairs + n1_scan + n2_scan + nt + 1;
     int *patch_outer = malloc(sizeof(int) * npatch_max);
     int *patch_inner = malloc(sizeof(int) * npatch_max);
     int npatch_outer = 0, npatch_inner = 0;
 
-    int addr_rewind0 = emit(stmt, &pc, Op_Rewind, 0, -1, 0, NULL);
+    int addr_rewind0 = -1;
     int addr_loop1 = pc;
+    if (!seek1)
+    {
+        addr_rewind0 = emit(stmt, &pc, Op_Rewind, 0, -1, 0, NULL);
+        addr_loop1 = pc;
+        emit_filter_checks(stmt, &pc, side1_cmps, n1_scan, cols1, cols2, r_lit_base, r_tmp_a, patch_outer,
+                            &npatch_outer);
+    }
 
-    /* Conditions pushed to the left (outer) table: checked once per
-     * outer row, before we even bother rewinding the inner cursor. */
-    emit_filter_checks(stmt, &pc, side1_cmps, n1, cols1, cols2, r_lit_base, r_tmp_a, patch_outer, &npatch_outer);
-
-    int addr_rewind1 = emit(stmt, &pc, Op_Rewind, 1, -1, 0, NULL);
+    int addr_rewind1 = -1;
     int addr_loop2 = pc;
+    if (!seek2)
+    {
+        addr_rewind1 = emit(stmt, &pc, Op_Rewind, 1, -1, 0, NULL);
+        addr_loop2 = pc;
+    }
 
     for (int p = 0; p < npairs; p++)
     {
@@ -875,28 +965,51 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
         emit_rcol(stmt, &pc, (RCol){ 1, join2[p] }, cols1, cols2, r_tmp_b);
         patch_inner[npatch_inner++] = emit(stmt, &pc, Op_Ne, r_tmp_a, -1, r_tmp_b, NULL);
     }
-    emit_filter_checks(stmt, &pc, side2_cmps, n2, cols1, cols2, r_lit_base + n1, r_tmp_a, patch_inner, &npatch_inner);
-    emit_filter_checks(stmt, &pc, top_cmps, nt, cols1, cols2, r_lit_base + n1 + n2, r_tmp_a, patch_inner,
+    emit_filter_checks(stmt, &pc, side2_cmps, n2_scan, cols1, cols2, r_lit_base + n1_scan, r_tmp_a, patch_inner,
+                        &npatch_inner);
+    emit_filter_checks(stmt, &pc, top_cmps, nt, cols1, cols2, r_lit_base + n1_scan + n2_scan, r_tmp_a, patch_inner,
                         &npatch_inner);
 
     for (int k = 0; k < nout; k++)
         emit_rcol(stmt, &pc, out[k], cols1, cols2, r_out0 + k);
     emit(stmt, &pc, Op_ResultRow, r_out0, nout, 0, NULL);
 
-    int addr_skip_inner = emit(stmt, &pc, Op_Next, 1, addr_loop2, 0, NULL);
+    /* Every inner-side failure (a join-pair mismatch, a SCAN-mode side2/
+     * top filter failing, or -- when side2 scans -- Rewind1 finding
+     * table2 empty) goes to whatever comes right after the inner stage:
+     * Next(1,...) if it loops, otherwise straight through. */
+    int addr_after_inner = (!seek2) ? emit(stmt, &pc, Op_Next, 1, addr_loop2, 0, NULL) : pc;
     for (int k = 0; k < npatch_inner; k++)
-        stmt->ops[patch_inner[k]].p2 = addr_skip_inner;
+        stmt->ops[patch_inner[k]].p2 = addr_after_inner;
+    if (addr_rewind1 >= 0)
+        stmt->ops[addr_rewind1].p2 = addr_after_inner;
 
-    int addr_next0 = pc;
-    stmt->ops[addr_rewind1].p2 = addr_next0;
-    for (int k = 0; k < npatch_outer; k++)
-        stmt->ops[patch_outer[k]].p2 = addr_next0;
-    emit(stmt, &pc, Op_Next, 0, addr_loop1, 0, NULL);
+    /* And the outer side: a SCAN-mode side1 filter failing skips
+     * straight to Next(0,...) (the whole inner stage never ran for this
+     * row); if side1 seeks, there's no outer loop, so everything just
+     * falls through to the closing tail. */
+    int addr_tail;
+    if (!seek1)
+    {
+        int addr_next0 = emit(stmt, &pc, Op_Next, 0, addr_loop1, 0, NULL);
+        for (int k = 0; k < npatch_outer; k++)
+            stmt->ops[patch_outer[k]].p2 = addr_next0;
+        addr_tail = pc;
+        stmt->ops[addr_rewind0].p2 = addr_tail;
+    }
+    else
+    {
+        addr_tail = pc;
+    }
+    for (int k = 0; k < npatch_die; k++)
+        stmt->ops[patch_die[k]].p2 = addr_tail;
 
-    int addr_end = pc;
-    stmt->ops[addr_rewind0].p2 = addr_end;
     emit(stmt, &pc, Op_Close, 1, 0, 0, NULL);
+    if (seek2)
+        emit(stmt, &pc, Op_Close, 3, 0, 0, NULL);
     emit(stmt, &pc, Op_Close, 0, 0, 0, NULL);
+    if (seek1)
+        emit(stmt, &pc, Op_Close, 2, 0, 0, NULL);
     emit(stmt, &pc, Op_Halt, 0, 0, 0, NULL);
 
     stmt->nCols = nout;
@@ -905,6 +1018,7 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     for (int k = 0; k < nout; k++)
         stmt->cols[k] = strdup(column_name_at(out[k].side == 0 ? cols1 : cols2, out[k].idx));
 
+    free(patch_die);
     free(patch_outer);
     free(patch_inner);
     free(side1_cmps);

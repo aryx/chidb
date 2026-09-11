@@ -1,0 +1,207 @@
+# -*- org -*-
+
+* 2.0 (Q3 2026) (chidb assignments 1-4 implemented: B-Tree, DBM, code generator, query optimizer)
+
+** btree
+- implement chidb_Btree_open/close, including the exact 100-byte file
+  header (magic string, page size, and the handful of other fields
+  SQLite itself checks) reverse-engineered from check_btree_1b.c's byte
+  assertions, since a new/empty file has to produce that exact header
+  (big thx to Claude)
+- implement node load/write/alloc (getNodeByPage, freeMemNode, newNode,
+  initEmptyNode, writeNode), getCell/insertCell for all four cell types
+  (table/index x internal/leaf), and find()
+- implement insert/insertNonFull/split, including the fixed-root-page
+  split trick (root's own page number can never change since it's
+  recorded in the schema table, so a full root is split by cloning its
+  content into a new page, turning the root into an empty internal node
+  in place, then splitting that page for real)
+- all 8 steps of check_btree pass (opening existing/new files, node
+  load/write, cell manipulation, find, insertion with and without
+  splitting, index B-Trees)
+
+** dbm
+- dbm-cursor.[ch]: first-pass cursor implementation that materializes a
+  whole B-Tree's in-order entry sequence into a sorted array per cursor,
+  rather than a stack-based O(log n)-space traversal -- explicitly
+  sanctioned by the assignment as a valid first approximation; revisit
+  if the O(1)-amortized-Next bonus credit ever matters
+- implement all 37 DBM opcodes in dbm-ops.c (register manipulation,
+  control flow, cursor open/close/move/seek, column/key access, record
+  build, insert, index ops, B-Tree creation)
+- check_dbm: 100% (105 DBMF cases at this point)
+
+** codegen
+- schema loading (chidbInt.h's chidb_schema_item_t, util.c's
+  chidb_schema_*), wired into chidb_open/chidb_step so CREATE
+  TABLE/INDEX refresh it
+- CREATE TABLE, INSERT, single-table SELECT with an optional WHERE
+- CREATE INDEX with population from the table's existing rows, INSERT
+  keeps every index on a table up to date, and a single top-level
+  `indexedcol = val` WHERE compiles to an index seek instead of a full
+  scan (assignment_opt.html "Supporting Indexes")
+- two-way NATURAL JOIN (nested-loop join, qualified/unqualified column
+  names, `*` coalesces the shared join column) -- no upstream test
+  suite exists for this, so built one: tests/files/databases/
+  join-courses-departments.cdb + 6 DBMF cases under
+  tests/files/dbm-programs/sql-select-join/
+- generalized WHERE, for both single-table and joined SELECT, from "at
+  most one condition" to a full AND-chain of `column OP literal`
+  comparisons (ResolvedCmp/resolve_conjuncts/emit_filter_checks),
+  needed to make sigma-pushing meaningful
+
+** optimizer
+- sigma-pushing for `Project(exprs, Select(cond, NaturalJoin(t1, t2)))`:
+  splits cond's AND-chain into per-table buckets (ambiguous/cross-table
+  conjuncts stay at the top, conservatively) and rewires each bucket
+  next to its own table's Table node
+- extended index seeks to join scans: either side of a NATURAL JOIN
+  whose pushed condition is a single indexed equality now seeks that
+  side instead of scanning it, cutting the nested loop down to a single
+  check (both sides indexed), one seek plus a linear scan (one side
+  indexed), or the original nested scan (neither side indexed)
+- verified byte-for-byte against assignment_opt.html's own worked `.opt`
+  example, and against real query results across all four scan/seek
+  combinations, both before and after the rewrite
+- make check: 111/111 DBMF cases, with the optimizer live for every
+  query, not just behind `.opt`
+
+** bugfix
+- fixed a pre-existing, unrelated buffer overflow in libchisql's
+  indent_print() (an off-by-`ind` vsnprintf size argument) that crashed
+  the shell's .parse/.opt commands on any real query -- found because
+  sigma-pushing needs .opt to actually demonstrate anything
+
+** tests / demos
+- demos/ with three runnable, verified (not mocked-up) shell sessions:
+  library.sql (CREATE TABLE/INSERT/SELECT/CREATE INDEX), join.sql
+  (NATURAL JOIN with aliases), sigma-push.sql (.opt showing the
+  optimizer's before/after tree)
+- docs/claude_notes/: plan_chidb_implementation.md (status + what's not
+  done), notes_dbm_spec.txt + notes_file_format.txt (opcode/file-format
+  spec pulled from chi.cs.uchicago.edu/chidb, not shipped in this repo),
+  notes_sqlite.txt (how close chidb's architecture actually is to real
+  SQLite)
+
+** not done
+- using an index for a join side isn't extended past a single top-level
+  equality (same limit as the single-table case); no index use at all
+  for anything but equality
+- only two-way NATURAL JOIN of base tables -- no JOIN...ON/USING, outer
+  joins, 3-way joins, or UNION/INTERSECT/EXCEPT
+- sigma-pushing only recognizes the one exact shape named above
+
+* ------------------------------------------------------------------------
+
+* Eleven-year gap, three small community PRs merged (2015-2022)
+
+- 2020-01-16 mupp: fix a sql.y bug parsing conditions
+- 2021-03-14 b41sh: remove a duplicate return statement
+- 2022-11-28 Zheyu Shen: fix an erroneous ENOMEM check
+
+- repeated "propagating changes from reference solution" syncs against
+  the instructors' own solution (Borja Sotomayor)
+- tests/files/generated/ directory; index tests; test suite reorganized
+- support for a SQL statement (not just raw DBM instructions) inside a
+  DBMF test file
+- EXPLAIN statement support, and a .opt shell command to show a query's
+  parsed tree before/after optimization
+
+* ------------------------------------------------------------------------
+
+* 1.0 (Q1 2014) (first public release, Borja Sotomayor, University of Chicago)
+
+(this repo's own git history only starts in 2015 -- see the gap above --
+so 1.0's content here comes from the project's own later self-description,
+docs/sigcse2016-chidb.pdf, cross-checked against what's actually in the
+tree: source file copyright headers, include/chidb/chidb.h's API, and
+Makefile.am's module list)
+
+** btree
+- table and index B-Trees over a page-based file format that is a strict
+  subset of SQLite's own -- a chidb file opens directly in the real
+  sqlite3 shell, though not the other way around (no overflow pages, a
+  single 4-byte-int primary key only, a handful of column types)
+- schema (tables + indexes) itself stored as a table B-Tree, rooted at
+  page 1 of the file
+
+** dbm
+- a 37-opcode, register + cursor bytecode machine explicitly modeled on
+  SQLite's VDBE (see docs/claude_notes/notes_sqlite.txt for specifics) --
+  register manipulation, control flow, cursor open/seek/move, column/key
+  access, record building, and B-Tree/index creation and insertion
+
+** sql
+- lexer/parser (src/libchisql/sql.l, sql.y), "the current incarnation of
+  the SQL parser" per the SIGCSE paper's acknowledgments, credited there
+  to Allen Nelson
+- internal representation unified with relational-algebra notation (sigma,
+  pi, rho) rather than an ad hoc AST -- the paper's own pedagogical
+  selling point, "reinforcing in a working system what students have
+  otherwise seen only on paper"
+
+** api / shell
+- chidb_open/prepare/step/finalize + column accessors, mirroring
+  sqlite3's own C API almost exactly (include/chidb/chidb.h)
+- interactive shell (src/shell/) with .parse/.opt/.dbmrun/EXPLAIN, for
+  inspecting a query's parse tree, optimized tree, or compiled bytecode
+  without a debugger
+
+** released as
+- a BSD-licensed assignment *framework*, not a finished product: what
+  ships in the public distribution has btree.c/dbm-ops.c/optimizer.c's
+  function bodies stripped down to "/* Your code goes here */" stubs for
+  the four course assignments (B-Trees; Database Machine; Code
+  Generation; Query Optimization) -- see the 2.0 entry above for what was
+  *still* a stub in this fork, twelve years later
+- at github.com/uchicago-cs/chidb, with the architecture/assignment docs
+  at chi.cs.uchicago.edu/chidb (both cited in the SIGCSE paper; also see
+  docs/claude_notes/notes_dbm_spec.txt and notes_file_format.txt, pulled
+  from that site since it isn't shipped in this repo)
+- assignment 1 (B-Trees) done in pairs; assignments 2-4 (DBM, Code
+  Generation, Query Optimization) done in teams of four (SIGCSE paper
+  section 3, "the most recent format we used")
+- the DBM assignment's own shape changed over the years: "in the past,
+  students had to implement the entire DBM from scratch themselves...
+  we have since standardized the internal representation of the DBM" so
+  graders could test against a fixed dbm.c/dbm-types.h -- exactly the
+  split this fork's own dbm-ops.c-only implementation (2.0, above) still
+  follows
+- the authors' own stated future work (SIGCSE paper section 6), still
+  true of this fork: no concurrency/locking/transactions attempted at
+  all ("the biggest gap in chidb"); the query-optimization assignment
+  considered the least satisfying of the four, since the supported SQL
+  subset "only lend[s] itself to some limited optimizations" and
+  optimizer output is hard to grade automatically; and a wish for a
+  step-by-step DBM debugger that was never built
+
+* ------------------------------------------------------------------------
+
+* Beta (2010-2014) (SQL front end, RA/SRA compiler design, further course iterations)
+
+(no git history reaches this far back either; dated from source file
+copyright headers -- "Copyright (c) 2009-2015" throughout src/libchidb/
+-- and the SIGCSE paper's own account of this period)
+
+- sql: Allen Nelson implements "the current incarnation" of the SQL
+  lexer/parser (SIGCSE paper acknowledgments)
+- codegen: the RA/SRA (sigma/pi/rho) internal representation takes shape
+  as the code generator's target, tying the SQL compiler to relational-
+  algebra theory
+- taught across further iterations of the databases course, building
+  toward the 1.0 public release above (SIGCSE paper: five iterations
+  total between 2009 and 2015, enrollment ranging 6-62 students)
+- shell: src/shell/ takes shape, still being refactored as late as
+  mid-2014 (src/shell/commands.h: "Created on: Jul 31, 2014")
+
+* Alpha (Q2 2009) (chidb created for CMSC 23500's first offering)
+
+- architecture: the SQLite-inspired design is established from the
+  start -- a page-based B-Tree file format (a subset of SQLite's own)
+  underneath a VDBE-inspired database machine -- per include/chidb/
+  chidb.h's own attribution ("2009, 2010 Borja Sotomayor ... Some
+  modifications by CMSC 23500 class of Spring 2009")
+- first taught in CMSC 23500 at the University of Chicago, Spring 2009;
+  per the SIGCSE paper's acknowledgments, "our colleague Sharon Salveter
+  ... taught the chidb course in its first two iterations, and so got
+  the ball rolling with what was at the time untested work"

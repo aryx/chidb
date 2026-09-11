@@ -124,19 +124,46 @@ result verification above is the real coverage for it.)
 `make check`: 5/5 suites, 111/111 DBMF cases, all green -- with
 sigma-pushing live for every query, not just ones run through `.opt`.
 
+### Index seeks extended to join scans
+
+`codegen_select_join` now independently decides, per side, whether to
+SCAN (the original `Rewind`/`Next` loop with the side's pushed conjuncts
+as filters) or SEEK (when that side's pushed condition is exactly one
+equality on an indexed column): open every cursor that could possibly be
+needed up front, before any `Seek`/`Rewind` runs, perform every SEEK
+positioning unconditionally (a seek's result is a compile-time-literal
+lookup, so it's invariant across outer-loop iterations regardless of
+which side drives the loop), and only then wrap whichever side(s) are
+still SCAN in an actual loop. Opening everything up front means every
+"no more rows" outcome -- an index miss on either side, or an empty
+table on a SCAN side -- shares one cursor-closing tail at the very end,
+since nothing that tail closes is ever still unopened at the point
+something jumps to it. This turns "both sides indexed" into a single
+check with no loop instructions at all, "one side indexed" into one
+seek per outer row instead of a full inner scan, and "neither indexed"
+into the original nested loop, unchanged.
+
+Along the way, found and fixed a real gap: `codegen_create_index` never
+validated that the indexed column is actually `INTEGER`-typed
+(fileformat.html: "Indexes can only be created for unsigned 4-byte
+integer unique fields") -- indexing a `TEXT` column previously silently
+built a corrupt index instead of returning `CHIDB_EINVALIDSQL` (an
+`IdxInsert` would read a `REG_STRING` register's `.value.i`, i.e. the low
+bits of a pointer, as if it were the intended integer key). Found by
+hitting exactly this while building the test fixture for this feature.
+
+Verified by hand: outer-only seek, inner-only seek, both-seek (confirmed
+via `EXPLAIN` to compile to zero loop instructions), and every
+miss/no-match combination for each (index miss on one side with the
+other a hit; both indexed with one missing) -- all against manually
+computed expected row sets, matched exactly, no crashes.
+
 Not implemented (out of scope for this pass, in order of likely value if
 resumed):
-- Using an index for either side of a join's scan. Sigma-pushing moves a
-  single-table condition next to its table, but `codegen_select_join`
-  still always compiles that side as a full `Rewind`/`Next` scan with a
-  filter, never an index seek -- so pushing currently only buys skipping
-  a linear scan's rows early, not the seek assignment_opt.html's other
-  index-related point implies. `codegen_select_indexed` (the single-table
-  version of this) is the template to extend.
-- Index-based codegen otherwise only covers a single top-level equality
-  test (`indexed-col = val` / `val = indexed-col`) even in the
-  single-table case -- e.g. `WHERE indexedcol > val`, or an indexable
-  equality ANDed with anything else, still does a full scan.
+- Index-based codegen (single-table or join) only covers a single
+  top-level equality test (`indexed-col = val` / `val = indexed-col`) --
+  e.g. `WHERE indexedcol > val`, or an indexable equality ANDed with
+  anything else, still does a full scan/full filter check on that side.
 - Only two-way NATURAL JOIN of two base tables -- no 3-way joins, no
   `JOIN ... ON`/`USING`, no outer joins, no `UNION`/`INTERSECT`/`EXCEPT`.
   `codegen_select_join` rejects anything where either side of the
