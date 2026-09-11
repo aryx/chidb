@@ -47,6 +47,11 @@
 - new docs/claude_notes/ notes on the file format, the DBM bytecode,
   chidb vs. SQLite, and debugging techniques used along the way
 
+** build infra
+- Dockerfile and docker.yml GHA (GitHub Actions) CI, building chidb
+  from scratch on Ubuntu and running the full test suite plus a demo
+  as a smoke test
+
 ** not done
 - an indexed comparison ANDed with another condition still falls back
   to a full scan instead of a seek

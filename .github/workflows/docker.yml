@@ -1,0 +1,17 @@
+# Build chidb via docker.
+# See also Dockerfile at the root of the project.
+
+name: docker
+
+on:
+  pull_request_target: {}
+  workflow_dispatch: null
+  push:
+    branches: [ master ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: docker build -t chidb .
