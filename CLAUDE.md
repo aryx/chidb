@@ -41,19 +41,28 @@ Before assuming a SQL feature works or doesn't, check the plan file's "Not imple
 
 ## Build
 
-Autotools project (no CMake/Meson). Requires `flex`/`bison`, `libedit` (+ `histedit.h`), and
-optionally `check` (>= 0.9.14) for the test suite.
+Plain `configure` + `Makefile`s (no autotools, no CMake/Meson) — a short shell script plus one
+hand-written `Makefile` per directory (`src/simclist`, `src/libchisql`, `src/libchidb`,
+`src/shell`, `tests`), recursively driven from the top-level `Makefile`. `./configure` probes for
+`flex`/`bison`, `libedit` (+ `histedit.h`), and optionally `check` (>= 0.9.14, for the test suite —
+`make check` degrades to a warning instead of failing if it's absent) and writes the results to
+`Makefile.config` (generated, gitignored — do not edit by hand, re-run `./configure` instead).
+Header dependencies are tracked the modern way (`-MMD -MP`, `-include *.d` in each subdir
+`Makefile`), not with a stale `make depend` pass.
 
 ```sh
-./autogen.sh          # only needed if configure/Makefile.in are missing (regenerates via autoreconf)
 ./configure
-make                  # builds libchidb.la, libchisql.la, libsimclist.la, and the `chidb` shell binary
+make                  # builds libsimclist.a, libchisql.a, libchidb.a, and the `chidb` shell binary
 ```
+
+Builds in-place (no out-of-tree/`VPATH` support) and installs nothing — `./chidb` at the repo root
+*is* the build output (`src/shell/Makefile` links it there directly), which is what `demos/` and
+the `Dockerfile` both run against.
 
 ## Tests
 
 Tests use the [Check](https://libcheck.github.io/check/) C unit testing framework, wired into
-`make check` via `TESTS` in `Makefile.am`.
+`make check` (alias: `make test`) by `tests/Makefile`.
 
 ```sh
 make check                                  # build and run all test binaries
@@ -65,8 +74,8 @@ CK_RUN_SUITE="..." ./tests/check_btree
 Test binaries: `check_btree` (split across `check_btree_1a.c`...`check_btree_8.c` + shared
 `check_btree_common.c`/`check_btree_files.c`), `check_dbrecord`, `check_dbm`, `check_pager`,
 `check_utils`. Fixture files live under `tests/files/{databases,dbm-programs,generated}/`; test
-code resolves them via `TEST_DIR` (set to `$(srcdir)/tests/` by the Makefile), not relative paths,
-so tests are runnable from the build directory.
+code resolves them via `TEST_DIR` (set to the repo root's absolute `tests/` path by
+`tests/Makefile`), not relative paths, so tests are runnable from anywhere.
 
 ## Architecture
 
