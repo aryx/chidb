@@ -77,6 +77,17 @@ Effort: large. The two pieces (codegen and optimizer) need to grow
 together, and a 3-way join in particular raises real design questions
 (join order/associativity) that two-way NATURAL JOIN never had to answer.
 
+Update (2026-09-11): turns out smaller than this made it sound --
+sql.y's `table` grammar rule is already left-recursive and already
+parses a chain of any number of joins, of any mix of join types
+(`SRA_JOIN`/`SRA_NATURAL_JOIN`/outer-join nodes), so an N-way *inner*
+join isn't blocked on the parser at all, only on `codegen_select_join`'s
+own narrow two-table check. See
+[plan_sqlite_extensions.md](plan_sqlite_extensions.md)'s #7 for the
+fuller breakdown (N-way inner joins first, then `ON`/`USING`, then
+`OUTER JOIN`, each a smaller independent step) and its "key insight"
+section for what else the front end already parses but codegen ignores.
+
 ## 5. O(1)-amortized cursors (explicit bonus-credit item)
 
 `dbm-cursor.c`'s cursor implementation materializes a whole B-Tree's

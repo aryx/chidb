@@ -27,8 +27,11 @@ non-integer column silently built a corrupt index instead of erroring. See
 `docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. the remaining gaps (an
 indexed comparison ANDed with anything else, 3-way joins, and a few others; see
 `docs/claude_notes/plan_extensions.md` for effort/value notes on each candidate next step, including
-DELETE support, which was never in scope for the four assignments to begin with), `changes.txt` for the
-project's full history back to its 2009 origin, `docs/claude_notes/notes_debugging_techniques.txt`
+DELETE support, which was never in scope for the four assignments to begin with, and
+`docs/claude_notes/plan_sqlite_extensions.md` for a longer, syllabus-style plan of real-SQLite
+features chidb still lacks entirely — transactions, a cost-based query planner, aggregates/GROUP BY,
+and more), `changes.txt` for the project's full history back to its 2009 origin,
+`docs/claude_notes/notes_debugging_techniques.txt`
 for how bugs in this codebase are best diagnosed (EXPLAIN-bytecode tracing especially), and
 `docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode spec pulled from
 chi.cs.uchicago.edu/chidb. The full site (not shipped upstream, and not reachable via HTTPS from this
