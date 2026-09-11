@@ -7,18 +7,18 @@
 FROM ubuntu:24.04
 
 # Setup a basic C dev environment. pkg-config is optional (./configure
-# falls back to a plain link test for libedit/check if it's missing)
-# but gives the most reliable detection, so keep it.
+# falls back to a plain link test for check if it's missing) but gives
+# the most reliable detection, so keep it.
 RUN apt-get update # needed otherwise can't find any package
 RUN apt-get install -y --no-install-recommends \
       build-essential pkg-config
 
 # chidb-specific deps: flex/bison for the SQL parser (sql.l/sql.y),
-# libedit for the interactive shell's line editing, and check for the
-# test suite (./configure only warns and disables tests if check is
-# missing, so install it to actually exercise `make check`)
+# and check for the test suite (./configure only warns and disables
+# tests if check is missing, so install it to actually exercise
+# `make check`)
 RUN apt-get install -y --no-install-recommends \
-      flex bison libedit-dev check
+      flex bison check
 
 WORKDIR /src
 COPY . .

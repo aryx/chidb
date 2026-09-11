@@ -44,7 +44,7 @@ Before assuming a SQL feature works or doesn't, check the plan file's "Not imple
 Plain `configure` + `Makefile`s (no autotools, no CMake/Meson) — a short shell script plus one
 hand-written `Makefile` per directory (`src/simclist`, `src/libchisql`, `src/libchidb`,
 `src/shell`, `tests`), recursively driven from the top-level `Makefile`. `./configure` probes for
-`flex`/`bison`, `libedit` (+ `histedit.h`), and optionally `check` (>= 0.9.14, for the test suite —
+`flex`/`bison`, and optionally `check` (>= 0.9.14, for the test suite —
 `make check` degrades to a warning instead of failing if it's absent) and writes the results to
 `Makefile.config` (generated, gitignored — do not edit by hand, re-run `./configure` instead).
 Header dependencies are tracked the modern way (`-MMD -MP`, `-include *.d` in each subdir
@@ -127,8 +127,8 @@ front end — useful for testing DBM opcodes in isolation from the parser/codege
 `src/simclist/` is a vendored third-party generic C list library (not chidb code); avoid modifying
 it beyond what's needed to keep it building against project CFLAGS.
 
-`src/shell/` is the interactive `chidb` REPL binary (uses `libedit`/`histedit.h`), built on top of
-`libchidb`. Not a layer other code depends on.
+`src/shell/` is the interactive `chidb` REPL binary (a plain `getline()` loop, no line-editing
+library), built on top of `libchidb`. Not a layer other code depends on.
 
 ## Demos
 

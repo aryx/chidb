@@ -101,40 +101,6 @@ fi
 echo "configure: found $YACC"
 
 ###############################################################################
-# libedit, for src/shell's interactive line editing
-###############################################################################
-# Try pkg-config first (handles the odd host where histedit.h lives
-# under a non-standard -I, e.g. /usr/include/editline); fall back to a
-# plain link test, since libedit's .pc file isn't universal.
-LIBEDIT_CFLAGS=
-LIBEDIT_LIBS=-ledit
-libedit_ok=no
-
-if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists libedit 2>/dev/null; then
-    LIBEDIT_CFLAGS=`pkg-config --cflags libedit`
-    LIBEDIT_LIBS=`pkg-config --libs libedit`
-    libedit_ok=yes
-fi
-
-if [ "$libedit_ok" = no ]; then
-    cat > "$WORKDIR/t.c" <<'EOF'
-#include <histedit.h>
-int main(void) { el_init("t", 0, 0, 0); return 0; }
-EOF
-    if "$CC" $LIBEDIT_CFLAGS "$WORKDIR/t.c" -o "$WORKDIR/t" $LIBEDIT_LIBS >/dev/null 2>&1; then
-        libedit_ok=yes
-    fi
-fi
-
-if [ "$libedit_ok" = no ]; then
-    echo "configure: error: libedit (histedit.h + -ledit) not found" >&2
-    echo "  install it, e.g. on Debian/Ubuntu: apt-get install libedit-dev" >&2
-    note_other_pkgmgr
-    exit 1
-fi
-echo "configure: found libedit"
-
-###############################################################################
 # Check (optional: the test suite is skipped, not fatal, if missing)
 ###############################################################################
 CHECK_CFLAGS=
@@ -177,9 +143,6 @@ fi
     echo "AR = ar"
     echo "LEX = $LEX"
     echo "YACC = $YACC"
-    echo
-    echo "LIBEDIT_CFLAGS = $LIBEDIT_CFLAGS"
-    echo "LIBEDIT_LIBS = $LIBEDIT_LIBS"
     echo
     echo "HAS_CHECK = $HAS_CHECK"
     echo "CHECK_CFLAGS = $CHECK_CFLAGS"

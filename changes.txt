@@ -56,6 +56,11 @@
   hand-written Makefiles (one per src/*/ dir plus tests/), matching
   this author's other projects -- same `./configure; make; make check`
   entry points, no functional change
+- dropped the libedit dependency: src/shell's REPL now reads lines
+  with a plain getline() loop instead of EditLine/history() -- loses
+  up-arrow history recall and emacs-style line editing, gains one
+  less mandatory external library (configure used to hard-fail if
+  histedit.h/-ledit weren't found)
 
 ** not done
 - an indexed comparison ANDed with another condition still falls back
