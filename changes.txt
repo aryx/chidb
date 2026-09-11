@@ -74,6 +74,13 @@
   check reimplementation) out of src/ and into a new top-level libs/,
   matching this author's other projects -- src/ is now chidb-specific
   code only
+- extracted the logging module (chilog()/chilog_hex(), CRITICAL..TRACE)
+  the same way, as libs/logs/, and renamed its chilog()-prefixed API to
+  the log_trace()/../log_fatal()/log_set_level() shape most small C
+  logging libraries use, with the levels reordered to the standard
+  ascending LOG_TRACE..LOG_FATAL severity -- no behavior change, just
+  src/libchidb/pager.c's three call sites and src/shell/main.c's
+  verbosity mapping updated to match
 
 ** not done
 - an indexed comparison ANDed with another condition still falls back

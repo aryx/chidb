@@ -50,19 +50,19 @@ int main(int argc, char *argv[])
     switch(verbosity)
     {
     case 0:
-        chilog_setloglevel(CRITICAL);
+        log_set_level(LOG_FATAL);
         break;
     case 1:
-        chilog_setloglevel(INFO);
+        log_set_level(LOG_INFO);
         break;
     case 2:
-        chilog_setloglevel(DEBUG);
+        log_set_level(LOG_DEBUG);
         break;
     case 3:
-        chilog_setloglevel(TRACE);
+        log_set_level(LOG_TRACE);
         break;
     default:
-        chilog_setloglevel(TRACE);
+        log_set_level(LOG_TRACE);
         break;
     }
 

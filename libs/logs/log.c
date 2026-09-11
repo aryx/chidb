@@ -46,53 +46,31 @@
 #include "log.h"
 
 
-/* Logging level. Set by default to print just errors */
-static int loglevel = ERROR;
+/* Logging threshold. Defaults to LOG_ERROR (print just errors and
+ * above). */
+static log_level_t loglevel = LOG_ERROR;
+
+static const char *level_names[] = { "TRACE", "DEBUG", "INFO", "WARN", "ERROR", "FATAL" };
 
 
-void chilog_setloglevel(loglevel_t level)
+void log_set_level(log_level_t level)
 {
     loglevel = level;
 }
 
 
-void __chilog(loglevel_t level, char *file, int line, char *fmt, ...)
+void log_log(log_level_t level, const char *file, int line, const char *fmt, ...)
 {
-    char buf[31], *levelstr;
+    char buf[31];
     va_list argptr;
 
-    if(level > loglevel)
+    if(level < loglevel)
         return;
 
-    snprintf(buf, 31, "%s:%i", file, line);
-
-    switch(level)
-    {
-    case CRITICAL:
-        levelstr = "CRITIC";
-        break;
-    case ERROR:
-        levelstr = "ERROR";
-        break;
-    case WARNING:
-        levelstr = "WARN";
-        break;
-    case INFO:
-        levelstr = "INFO";
-        break;
-    case DEBUG:
-        levelstr = "DEBUG";
-        break;
-    case TRACE:
-        levelstr = "TRACE";
-        break;
-    default:
-        levelstr = "UNKNOWN";
-        break;
-    }
+    snprintf(buf, sizeof(buf), "%s:%i", file, line);
 
     flockfile(stdout);
-    printf(" %6s %-30s ", levelstr, buf);
+    printf(" %6s %-30s ", level_names[level], buf);
     va_start(argptr, fmt);
     vprintf(fmt, argptr);
     printf("\n");
@@ -104,15 +82,15 @@ void __chilog(loglevel_t level, char *file, int line, char *fmt, ...)
 
 
 // Based on http://stackoverflow.com/questions/7775991/how-to-get-hexdump-of-a-structure-data
-void __chilog_hex (loglevel_t level, char *file, int fline, void *data, int len)
+void log_hexdump_(log_level_t level, const char *file, int line, const void *data, int len)
 {
     int i;
     char buf[8];
     char ascii[17];
-    char line[74];
-    uint8_t *pc = data;
+    char linebuf[74];
+    const uint8_t *pc = data;
 
-    line[0] = '\0';
+    linebuf[0] = '\0';
     // Process every byte in the data.
     for (i = 0; i < len; i++)
     {
@@ -123,18 +101,18 @@ void __chilog_hex (loglevel_t level, char *file, int fline, void *data, int len)
             // Just don't print ASCII for the zeroth line.
             if (i != 0)
             {
-                __chilog(level, file, fline, "%s  %s", line, ascii);
-                line[0] = '\0';
+                log_log(level, file, line, "%s  %s", linebuf, ascii);
+                linebuf[0] = '\0';
             }
 
             // Output the offset.
             sprintf(buf, "  %04x ", i);
-            strcat(line, buf);
+            strcat(linebuf, buf);
         }
 
         // Now the hex code for the specific character.
         sprintf(buf, " %02x", pc[i]);
-        strcat(line, buf);
+        strcat(linebuf, buf);
 
         // And store a printable ASCII character for later.
         if ((pc[i] < 0x20) || (pc[i] > 0x7e))
@@ -147,10 +125,10 @@ void __chilog_hex (loglevel_t level, char *file, int fline, void *data, int len)
     // Pad out last line if not exactly 16 characters.
     while ((i % 16) != 0)
     {
-        strcat(line, "   ");
+        strcat(linebuf, "   ");
         i++;
     }
 
     // And print the final ASCII bit.
-    __chilog(level, file, fline, "%s  %s", line, ascii);
+    log_log(level, file, line, "%s  %s", linebuf, ascii);
 }

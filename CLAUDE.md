@@ -42,7 +42,7 @@ Before assuming a SQL feature works or doesn't, check the plan file's "Not imple
 ## Build
 
 Plain `configure` + `Makefile`s (no autotools, no CMake/Meson) — a short shell script plus one
-hand-written `Makefile` per directory (`libs/simclist`, `libs/check`, `src/libchisql`,
+hand-written `Makefile` per directory (`libs/simclist`, `libs/logs`, `libs/check`, `src/libchisql`,
 `src/libchidb`, `src/shell`, `tests`), recursively driven from the top-level `Makefile`. `src/` is
 chidb-specific code (the database itself); `libs/` holds general-purpose, non-chidb-specific
 vendored library code (see `changes.txt`'s "internals" entries for when/why each one moved there).
@@ -135,7 +135,10 @@ front end — useful for testing DBM opcodes in isolation from the parser/codege
 `libs/simclist/` is a vendored third-party generic C list library (not chidb code); avoid modifying
 it beyond what's needed to keep it building against project CFLAGS. `libs/check/` is likewise
 vendored, but original code (a from-scratch reimplementation of a subset of the Check unit-testing
-API — see its top comment) rather than third-party.
+API — see its top comment) rather than third-party. `libs/logs/` is chidb's own logging module
+(`log_trace`/`log_debug`/`log_info`/`log_warn`/`log_error`/`log_fatal`, `log_set_level`,
+`log_hexdump` — see `libs/logs/log.h`), also moved out of `src/` since it has no chidb-specific
+dependency; `src/libchidb/pager.c` is currently its only caller.
 
 `src/shell/` is the interactive `chidb` REPL binary (a plain `getline()` loop, no line-editing
 library), built on top of `libchidb`. Not a layer other code depends on.

@@ -199,7 +199,7 @@ int	chidb_Pager_readPage(Pager *pager, npage_t npage, MemPage **page)
         return CHIDB_ENOMEM;
     fseek(pager->f, (npage - 1) * pager->page_size, SEEK_SET);
     n = fread((*page)->data, 1, pager->page_size, pager->f);
-    chilog(TRACE, "Read %i bytes from page %i into memory [%x data: %x]", n, npage, *page, (*page)->data);
+    log_trace("Read %i bytes from page %i into memory [%x data: %x]", n, npage, *page, (*page)->data);
 
     return CHIDB_OK;
 }
@@ -226,7 +226,7 @@ int	chidb_Pager_writePage(Pager *pager, MemPage *page)
     int n;
     fseek(pager->f, (page->npage - 1) * pager->page_size, SEEK_SET);
     n = fwrite(page->data, 1, pager->page_size, pager->f);
-    chilog(TRACE, "Wrote %i bytes to page %i", n, page->npage);
+    log_trace("Wrote %i bytes to page %i", n, page->npage);
     return CHIDB_OK;
 }
 
@@ -246,7 +246,7 @@ int	chidb_Pager_releaseMemPage(Pager *pager, MemPage *page)
     if (page->npage > pager->n_pages)
         return CHIDB_EPAGENO;
 
-    chilog(TRACE, "Releasing page %i from memory [%x data: %x]", page->npage, page, page->data);
+    log_trace("Releasing page %i from memory [%x data: %x]", page->npage, page, page->data);
     free(page->data);
     free(page);
 
