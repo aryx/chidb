@@ -15,7 +15,11 @@ include Makefile.config
 
 SUBDIRS = src/simclist src/libchisql src/libchidb src/shell
 
-.PHONY: all clean check test $(SUBDIRS)
+.PHONY: all clean check test build-docker visual $(SUBDIRS)
+
+###############################################################################
+# Main targets
+###############################################################################
 
 all: $(SUBDIRS)
 
@@ -31,3 +35,13 @@ check test: all
 clean:
 	for d in $(SUBDIRS) tests; do $(MAKE) -C $$d TOP=$(CURDIR) clean; done
 	rm -f chidb
+
+build-docker:
+	docker build -t "chidb" .
+
+###############################################################################
+# Developer targets
+###############################################################################
+
+visual:
+	codemap -screen_size 3 -efuns_client efuns_client -emacs_client /dev/null .
