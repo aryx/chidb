@@ -62,6 +62,19 @@
   less mandatory external library (configure used to hard-fail if
   histedit.h/-ledit weren't found)
 
+** internals
+- vendored a small from-scratch reimplementation of the Check
+  unit-testing framework's API (Suite/TCase/SRunner,
+  START_TEST/END_TEST, ck_assert*) as libs/check/, dropping the
+  external check package as a build dependency entirely -- `make
+  check` no longer needs pkg-config/check probing in ./configure or
+  the check apt package in the Dockerfile, and no existing test file
+  had to change
+- moved general-purpose vendored library code (simclist, and the new
+  check reimplementation) out of src/ and into a new top-level libs/,
+  matching this author's other projects -- src/ is now chidb-specific
+  code only
+
 ** not done
 - an indexed comparison ANDed with another condition still falls back
   to a full scan instead of a seek

@@ -19,8 +19,8 @@ set -eu
 #    from sql.l/sql.y
 #
 # The test suite (`make check`/`make test`) needs no probing: it's
-# built against src/libcheck, a small vendored reimplementation of the
-# Check unit-testing API (see src/libcheck/check.h), not an external
+# built against libs/check, a small vendored reimplementation of the
+# Check unit-testing API (see libs/check/check.h), not an external
 # library.
 #
 # Unlike autoconf, this does not generate a config.h: nothing in the

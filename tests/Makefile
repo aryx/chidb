@@ -1,18 +1,18 @@
 # tests: the test suite (check_btree, check_dbrecord, check_dbm,
 # check_pager, check_utils - see ../CLAUDE.md's Tests section), built
-# against src/libcheck, a small vendored reimplementation of the Check
-# unit-testing API (see ../src/libcheck/check.h) - no external test
+# against libs/check, a small vendored reimplementation of the Check
+# unit-testing API (see ../libs/check/check.h) - no external test
 # library dependency. TOP is passed in by the parent Makefile.
 
 include $(TOP)/Makefile.config
 
-CFLAGS += -I$(TOP)/include -I$(TOP)/src -I$(TOP)/src/simclist -I$(TOP)/src/libcheck -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
+CFLAGS += -I$(TOP)/include -I$(TOP)/src -I$(TOP)/libs/simclist -I$(TOP)/libs/check -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
 CFLAGS += -DTEST_DIR="\"$(TOP)/tests/\""
 
 LIBCHIDB = $(TOP)/src/libchidb/libchidb.a
 LIBCHISQL = $(TOP)/src/libchisql/libchisql.a
-LIBSIMCLIST = $(TOP)/src/simclist/libsimclist.a
-LIBCHECK = $(TOP)/src/libcheck/libcheck.a
+LIBSIMCLIST = $(TOP)/libs/simclist/libsimclist.a
+LIBCHECK = $(TOP)/libs/check/libcheck.a
 LIBS = $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST) $(LIBCHECK)
 
 PROGS = check_btree check_dbrecord check_dbm check_pager check_utils

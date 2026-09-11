@@ -12,7 +12,7 @@ RUN apt-get install -y --no-install-recommends \
       build-essential
 
 # chidb-specific deps: flex/bison for the SQL parser (sql.l/sql.y).
-# The test suite (src/libcheck) is vendored, so no separate package is
+# The test suite (libs/check) is vendored, so no separate package is
 # needed to exercise `make check`.
 RUN apt-get install -y --no-install-recommends \
       flex bison

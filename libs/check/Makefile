@@ -1,4 +1,4 @@
-# src/libcheck: a small vendored reimplementation of the subset of the
+# libs/check: a small vendored reimplementation of the subset of the
 # Check unit-testing API (https://libcheck.github.io/check/) that
 # tests/ uses - see check.h and ../../CLAUDE.md's Tests section. TOP
 # is passed in by the parent Makefile.

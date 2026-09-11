@@ -1,5 +1,6 @@
-# src/simclist: vendored third-party generic C list library (not chidb
-# code) - see ../../CLAUDE.md. TOP is passed in by the parent Makefile.
+# libs/simclist: vendored third-party generic C list library (not
+# chidb code) - see ../../CLAUDE.md. TOP is passed in by the parent
+# Makefile.
 
 include $(TOP)/Makefile.config
 

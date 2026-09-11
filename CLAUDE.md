@@ -42,11 +42,13 @@ Before assuming a SQL feature works or doesn't, check the plan file's "Not imple
 ## Build
 
 Plain `configure` + `Makefile`s (no autotools, no CMake/Meson) — a short shell script plus one
-hand-written `Makefile` per directory (`src/simclist`, `src/libcheck`, `src/libchisql`,
-`src/libchidb`, `src/shell`, `tests`), recursively driven from the top-level `Makefile`.
+hand-written `Makefile` per directory (`libs/simclist`, `libs/check`, `src/libchisql`,
+`src/libchidb`, `src/shell`, `tests`), recursively driven from the top-level `Makefile`. `src/` is
+chidb-specific code (the database itself); `libs/` holds general-purpose, non-chidb-specific
+vendored library code (see `changes.txt`'s "internals" entries for when/why each one moved there).
 `./configure` probes for `flex`/`bison` and writes the results to `Makefile.config` (generated,
 gitignored — do not edit by hand, re-run `./configure` instead). The test suite needs no probing:
-it builds against `src/libcheck`, a vendored library, not an external dependency. Header
+it builds against `libs/check`, a vendored library, not an external dependency. Header
 dependencies are tracked the modern way (`-MMD -MP`, `-include *.d` in each subdir `Makefile`), not
 with a stale `make depend` pass.
 
@@ -61,9 +63,9 @@ the `Dockerfile` both run against.
 
 ## Tests
 
-Tests use `src/libcheck`, a small vendored reimplementation of the
+Tests use `libs/check`, a small vendored reimplementation of the
 [Check](https://libcheck.github.io/check/) C unit testing framework's API (`START_TEST`/`END_TEST`,
-`ck_assert*`, `Suite`/`TCase`/`SRunner` — see `src/libcheck/check.h`) — not an external dependency,
+`ck_assert*`, `Suite`/`TCase`/`SRunner` — see `libs/check/check.h`) — not an external dependency,
 so `make check` never skips the test suite for lack of a library. Like real Check's default
 `CK_FORK=yes` mode, each test runs in its own forked child process, so a crashing test fails just
 that test instead of taking down the whole binary; wired into `make check` (alias: `make test`) by
@@ -130,8 +132,10 @@ tooling) to run a `.dbm` program file directly against a database without going 
 front end — useful for testing DBM opcodes in isolation from the parser/codegen (see
 `tests/files/dbm-programs/`).
 
-`src/simclist/` is a vendored third-party generic C list library (not chidb code); avoid modifying
-it beyond what's needed to keep it building against project CFLAGS.
+`libs/simclist/` is a vendored third-party generic C list library (not chidb code); avoid modifying
+it beyond what's needed to keep it building against project CFLAGS. `libs/check/` is likewise
+vendored, but original code (a from-scratch reimplementation of a subset of the Check unit-testing
+API — see its top comment) rather than third-party.
 
 `src/shell/` is the interactive `chidb` REPL binary (a plain `getline()` loop, no line-editing
 library), built on top of `libchidb`. Not a layer other code depends on.

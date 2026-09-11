@@ -12,7 +12,7 @@ OBJS = $(SRCS:.c=.o)
 
 LIBCHIDB = $(TOP)/src/libchidb/libchidb.a
 LIBCHISQL = $(TOP)/src/libchisql/libchisql.a
-LIBSIMCLIST = $(TOP)/src/simclist/libsimclist.a
+LIBSIMCLIST = $(TOP)/libs/simclist/libsimclist.a
 
 .PHONY: all clean
 
