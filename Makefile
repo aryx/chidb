@@ -6,14 +6,17 @@
 # edit by hand, re-run ./configure instead). Replaces the old
 # autoconf/automake/libtool build (see changes.txt for when/why).
 #
-# Build layout: src/simclist and src/libchisql are independent leaves;
-# src/libchidb links against both; src/shell links against all three
-# and produces ./chidb at the repo root (see src/shell/Makefile).
-# tests/ links against the same three libraries plus libcheck.
+# Build layout: src/simclist, src/libcheck and src/libchisql are
+# independent leaves; src/libchidb links against src/simclist and
+# src/libchisql; src/shell links against all three and produces
+# ./chidb at the repo root (see src/shell/Makefile). tests/ links
+# against the same three libraries plus src/libcheck (a small vendored
+# reimplementation of the Check unit-testing API - see
+# src/libcheck/check.h).
 
 include Makefile.config
 
-SUBDIRS = src/simclist src/libchisql src/libchidb src/shell
+SUBDIRS = src/simclist src/libcheck src/libchisql src/libchidb src/shell
 
 .PHONY: all clean check test build-docker visual $(SUBDIRS)
 

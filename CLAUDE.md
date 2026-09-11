@@ -42,17 +42,17 @@ Before assuming a SQL feature works or doesn't, check the plan file's "Not imple
 ## Build
 
 Plain `configure` + `Makefile`s (no autotools, no CMake/Meson) — a short shell script plus one
-hand-written `Makefile` per directory (`src/simclist`, `src/libchisql`, `src/libchidb`,
-`src/shell`, `tests`), recursively driven from the top-level `Makefile`. `./configure` probes for
-`flex`/`bison`, and optionally `check` (>= 0.9.14, for the test suite —
-`make check` degrades to a warning instead of failing if it's absent) and writes the results to
-`Makefile.config` (generated, gitignored — do not edit by hand, re-run `./configure` instead).
-Header dependencies are tracked the modern way (`-MMD -MP`, `-include *.d` in each subdir
-`Makefile`), not with a stale `make depend` pass.
+hand-written `Makefile` per directory (`src/simclist`, `src/libcheck`, `src/libchisql`,
+`src/libchidb`, `src/shell`, `tests`), recursively driven from the top-level `Makefile`.
+`./configure` probes for `flex`/`bison` and writes the results to `Makefile.config` (generated,
+gitignored — do not edit by hand, re-run `./configure` instead). The test suite needs no probing:
+it builds against `src/libcheck`, a vendored library, not an external dependency. Header
+dependencies are tracked the modern way (`-MMD -MP`, `-include *.d` in each subdir `Makefile`), not
+with a stale `make depend` pass.
 
 ```sh
 ./configure
-make                  # builds libsimclist.a, libchisql.a, libchidb.a, and the `chidb` shell binary
+make                  # builds libsimclist.a, libcheck.a, libchisql.a, libchidb.a, and the `chidb` shell binary
 ```
 
 Builds in-place (no out-of-tree/`VPATH` support) and installs nothing — `./chidb` at the repo root
@@ -61,14 +61,20 @@ the `Dockerfile` both run against.
 
 ## Tests
 
-Tests use the [Check](https://libcheck.github.io/check/) C unit testing framework, wired into
-`make check` (alias: `make test`) by `tests/Makefile`.
+Tests use `src/libcheck`, a small vendored reimplementation of the
+[Check](https://libcheck.github.io/check/) C unit testing framework's API (`START_TEST`/`END_TEST`,
+`ck_assert*`, `Suite`/`TCase`/`SRunner` — see `src/libcheck/check.h`) — not an external dependency,
+so `make check` never skips the test suite for lack of a library. Like real Check's default
+`CK_FORK=yes` mode, each test runs in its own forked child process, so a crashing test fails just
+that test instead of taking down the whole binary; wired into `make check` (alias: `make test`) by
+`tests/Makefile`.
 
 ```sh
 make check                                  # build and run all test binaries
 ./tests/check_btree                         # run one test binary directly (from build dir)
-CK_RUN_CASE="..." ./tests/check_btree        # Check env vars to isolate a single case
+CK_RUN_CASE="..." ./tests/check_btree        # env vars to isolate a single case/suite
 CK_RUN_SUITE="..." ./tests/check_btree
+CK_FORK=no ./tests/check_btree               # run in-process, e.g. to step through under gdb
 ```
 
 Test binaries: `check_btree` (split across `check_btree_1a.c`...`check_btree_8.c` + shared

@@ -17,12 +17,11 @@ set -eu
 #  - a C compiler (CC, default cc)
 #  - flex/bison, to regenerate src/libchisql/sql-{lexer,parser}.[ch]
 #    from sql.l/sql.y
-#  - libedit (histedit.h + -ledit), for the interactive shell's line
-#    editing (src/shell/main.c)
-#  - the Check unit-testing library (optional: if missing, `make
-#    check`/`make test` still builds everything but skips the test
-#    binaries with a warning, matching the old configure.ac's
-#    PKG_CHECK_MODULES behavior)
+#
+# The test suite (`make check`/`make test`) needs no probing: it's
+# built against src/libcheck, a small vendored reimplementation of the
+# Check unit-testing API (see src/libcheck/check.h), not an external
+# library.
 #
 # Unlike autoconf, this does not generate a config.h: nothing in the
 # tree actually uses any of the HAVE_* macros the old config.h.in
@@ -45,8 +44,7 @@ for arg in "$@"; do
             echo "Usage: ./configure [options]"
             echo "  CC=compiler   use this C compiler instead of \$CC/cc"
             echo
-            echo "flex/bison, libedit and (optionally) the Check test library are"
-            echo "auto-detected; there is nothing to configure for those."
+            echo "flex/bison are auto-detected; there is nothing to configure for those."
             exit 0
             ;;
         *)
@@ -56,9 +54,6 @@ for arg in "$@"; do
             ;;
     esac
 done
-
-WORKDIR=`mktemp -d`
-trap 'rm -rf "$WORKDIR"' EXIT
 
 # Printed once total, not once per missing piece.
 PKGMGR_HINTED=no
@@ -101,40 +96,6 @@ fi
 echo "configure: found $YACC"
 
 ###############################################################################
-# Check (optional: the test suite is skipped, not fatal, if missing)
-###############################################################################
-CHECK_CFLAGS=
-CHECK_LIBS=
-HAS_CHECK=no
-
-if command -v pkg-config >/dev/null 2>&1 && pkg-config --exists 'check >= 0.9.14' 2>/dev/null; then
-    CHECK_CFLAGS=`pkg-config --cflags check`
-    CHECK_LIBS=`pkg-config --libs check`
-    HAS_CHECK=yes
-else
-    cat > "$WORKDIR/t.c" <<'EOF'
-#include <check.h>
-int main(void) { suite_create("t"); return 0; }
-EOF
-    for libs in "-lcheck -lm -lpthread" "-lcheck_pic -lrt -lm -lsubunit -lpthread"; do
-        if "$CC" "$WORKDIR/t.c" -o "$WORKDIR/t" $libs >/dev/null 2>&1; then
-            CHECK_LIBS=$libs
-            HAS_CHECK=yes
-            break
-        fi
-    done
-fi
-
-if [ "$HAS_CHECK" = yes ]; then
-    echo "configure: found check (CHECK_LIBS = $CHECK_LIBS)"
-else
-    echo "configure: warning: Check (>= 0.9.14) not found - 'make check'/'make test' will" >&2
-    echo "  build everything but skip the test binaries" >&2
-    echo "  install it, e.g. on Debian/Ubuntu: apt-get install check" >&2
-    note_other_pkgmgr
-fi
-
-###############################################################################
 # Write Makefile.config
 ###############################################################################
 {
@@ -143,10 +104,6 @@ fi
     echo "AR = ar"
     echo "LEX = $LEX"
     echo "YACC = $YACC"
-    echo
-    echo "HAS_CHECK = $HAS_CHECK"
-    echo "CHECK_CFLAGS = $CHECK_CFLAGS"
-    echo "CHECK_LIBS = $CHECK_LIBS"
 } > Makefile.config
 
 echo "wrote Makefile.config"

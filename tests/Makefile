@@ -1,27 +1,21 @@
-# tests: the Check-based test suite (check_btree, check_dbrecord,
-# check_dbm, check_pager, check_utils - see ../CLAUDE.md's Tests
-# section). Built only if ./configure found the Check library
-# (HAS_CHECK); otherwise `all`/`check` are a no-op warning, matching
-# the old configure.ac's PKG_CHECK_MODULES behavior. TOP is passed in
-# by the parent Makefile.
+# tests: the test suite (check_btree, check_dbrecord, check_dbm,
+# check_pager, check_utils - see ../CLAUDE.md's Tests section), built
+# against src/libcheck, a small vendored reimplementation of the Check
+# unit-testing API (see ../src/libcheck/check.h) - no external test
+# library dependency. TOP is passed in by the parent Makefile.
 
 include $(TOP)/Makefile.config
 
-CFLAGS += -I$(TOP)/include -I$(TOP)/src -I$(TOP)/src/simclist -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
+CFLAGS += -I$(TOP)/include -I$(TOP)/src -I$(TOP)/src/simclist -I$(TOP)/src/libcheck -g3 -Wall -std=gnu99 -ggdb -D_GNU_SOURCE -MMD -MP
 CFLAGS += -DTEST_DIR="\"$(TOP)/tests/\""
-CFLAGS += $(CHECK_CFLAGS)
 
 LIBCHIDB = $(TOP)/src/libchidb/libchidb.a
 LIBCHISQL = $(TOP)/src/libchisql/libchisql.a
 LIBSIMCLIST = $(TOP)/src/simclist/libsimclist.a
-LIBS = $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST)
+LIBCHECK = $(TOP)/src/libcheck/libcheck.a
+LIBS = $(LIBCHIDB) $(LIBCHISQL) $(LIBSIMCLIST) $(LIBCHECK)
 
-ALL_PROGS = check_btree check_dbrecord check_dbm check_pager check_utils
-ifeq ($(HAS_CHECK),yes)
-PROGS = $(ALL_PROGS)
-else
-PROGS =
-endif
+PROGS = check_btree check_dbrecord check_dbm check_pager check_utils
 
 CHECK_BTREE_OBJS = check_btree.o check_btree_common.o check_btree_files.o \
                    check_btree_1a.o check_btree_1b.o check_btree_2.o \
@@ -41,29 +35,24 @@ ALL_OBJS = $(CHECK_BTREE_OBJS) $(CHECK_DBRECORD_OBJS) $(CHECK_DBM_OBJS) \
 all: $(PROGS)
 
 check_btree: $(CHECK_BTREE_OBJS) $(LIBS)
-	$(CC) -o $@ $(CHECK_BTREE_OBJS) $(LIBS) $(CHECK_LIBS)
+	$(CC) -o $@ $(CHECK_BTREE_OBJS) $(LIBS)
 
 check_dbrecord: $(CHECK_DBRECORD_OBJS) $(LIBS)
-	$(CC) -o $@ $(CHECK_DBRECORD_OBJS) $(LIBS) $(CHECK_LIBS)
+	$(CC) -o $@ $(CHECK_DBRECORD_OBJS) $(LIBS)
 
 check_dbm: $(CHECK_DBM_OBJS) $(LIBS)
-	$(CC) -o $@ $(CHECK_DBM_OBJS) $(LIBS) $(CHECK_LIBS)
+	$(CC) -o $@ $(CHECK_DBM_OBJS) $(LIBS)
 
 check_pager: $(CHECK_PAGER_OBJS) $(LIBS)
-	$(CC) -o $@ $(CHECK_PAGER_OBJS) $(LIBS) $(CHECK_LIBS)
+	$(CC) -o $@ $(CHECK_PAGER_OBJS) $(LIBS)
 
 check_utils: $(CHECK_UTILS_OBJS) $(LIBS)
-	$(CC) -o $@ $(CHECK_UTILS_OBJS) $(LIBS) $(CHECK_LIBS)
+	$(CC) -o $@ $(CHECK_UTILS_OBJS) $(LIBS)
 
 check test: all
-ifeq ($(HAS_CHECK),yes)
 	set -e; for t in $(PROGS); do echo "=== $$t ==="; ./$$t; done
-else
-	@echo "check: the Check library was not found at configure time (see ./configure output)"
-	@echo "check: skipping the test suite - built everything else fine"
-endif
 
 clean:
-	rm -f *.o *.d $(ALL_PROGS)
+	rm -f *.o *.d $(PROGS)
 
 -include $(ALL_OBJS:.o=.d)
