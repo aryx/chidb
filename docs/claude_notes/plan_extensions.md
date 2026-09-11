@@ -12,35 +12,67 @@ plan_chidb_implementation.md's own "Not implemented" section for the fuller
 technical detail behind each of these; this file is the shortlist plus
 effort/value notes for deciding what to do next, not a duplicate writeup.
 
-## 1. Fix the CHIDB_EDUPLICATE / CHIDB_EMISUSE error-code collision
+## 1. Fix the CHIDB_EDUPLICATE / CHIDB_EMISUSE error-code collision -- DONE (2026-09-11)
 
 `CHIDB_EDUPLICATE` (chidbInt.h, private) and `CHIDB_EMISUSE` (chidb.h,
-public) are both numerically `8` in the pre-existing constant tables, so a
+public) were both numerically `8` in the pre-existing constant tables, so a
 genuine duplicate-key error (e.g. `CREATE INDEX` over a column that isn't
-actually unique) gets reported by the shell as "API used incorrectly"
-instead. Cosmetic, but a real (if minor) bug.
+actually unique) got reported by the shell as "API used incorrectly"
+instead. Fixed two ways: `chidb_dbm_op_Insert`/`chidb_dbm_op_IdxInsert`
+(dbm-ops.c) now translate `CHIDB_EDUPLICATE` to the public, documented
+`CHIDB_ECONSTRAINT` right at the DBM/API boundary (matching
+architecture.html's own public return-code table, which already says
+`CHIDB_ECONSTRAINT` means "SQL statement failed because of a constraint
+violation" -- exactly this case), and `CHIDB_EDUPLICATE` itself was
+renumbered to `11` in chidbInt.h so it no longer aliases a public code at
+all, independent of whether some future caller also forgets to translate
+it. Verified against the shell directly (`CREATE INDEX` + a duplicate
+`INSERT` now prints the constraint-violation message) and `make check`
+(124/124, unchanged).
 
-Effort: small. Risk: need to check nothing else relies on the exact existing
-numbering of either constant table before renumbering one of them.
-
-## 2. Two-sided range seeks
+## 2. Two-sided range seeks -- DONE (2026-09-11)
 
 `WHERE indexedcol > 10 AND indexedcol < 20` -- a bounded range on the same
-indexed column -- currently falls back to a full scan with both conjuncts
-checked as ordinary filters, because index-seek planning requires the
+indexed column -- previously fell back to a full scan with both conjuncts
+checked as ordinary filters, because index-seek planning required the
 seekable side's condition to be exactly one comparison (`ncmp == 1`,
-checked in codegen.c before even looking at what the comparison is). This
-is a natural continuation of the range-seek work in the 2.0 entry: reusing
-`IndexSeekKind`/`SideAccess`/`ACC_RANGESEEK` but starting the walk from a
-lower-bound seek and stopping it once the upper bound is exceeded (or vice
-versa for a descending walk), instead of relying on the cursor's own
-exhaustion.
+checked in codegen.c before even looking at what the comparison is).
 
-Effort: moderate. Touches `codegen_select_indexed` and
-`codegen_select_join` (`resolve_conjuncts`-adjacent code needs to recognize
-the two-sided-same-column shape and pass both bounds through), plus new
-tests mirroring the existing `sql-select-01[2-5].dbmf` /
-`join-range-*.dbmf` pattern.
+Implemented as designed: a new `detect_range_pair()` (codegen.c) recognizes
+exactly "two conjuncts, same indexed column, one a lower bound (`>`/`>=`)
+and the other an upper bound (`<`/`<=`)" and normalizes them so the caller
+always seeks forward from the lower bound (`SeekGt`/`SeekGe`) and stops the
+walk once the upper bound fails on a visited row -- a direct per-row check
+(there's no opcode to read an index cursor's own key column, only its
+PKey, so the check reads the already-derived table row instead), routed to
+the same "stop, don't retry" target a natural `Next`/`Prev` exhaustion
+would use (`addr_tail` for `codegen_select_indexed` and the single-table
+path; `patch_die` for a join's outer/left side, since it's the outermost
+loop; a new `patch_stop_inner`/`addr_done_inner` pairing for a join's
+inner/right side, since failing there must only end *that* outer row's
+inner walk, not the whole query -- unlike the outer side, there may be
+more outer rows left to try). `SideAccess` gained a `cmp2` field (NULL
+unless this side is a two-sided range) and two new literal registers
+(`r_lit1b`/`r_lit2b`) to carry both sides' index code.
+
+Verified against the shell directly (`EXPLAIN` confirms a single
+`SeekGt`/`SeekGe` plus a bounded check, no scan) for: multiple matches,
+a range collapsing to one row, a logically-empty range (`>30 AND <10`),
+a range with no data in it despite the seek succeeding, and -- the
+trickiest case -- a two-sided range on a join's *inner* side, confirmed to
+correctly reset and re-bound per outer row rather than only working for
+the first one, including the case where one outer row's inner walk is
+correctly abandoned (bound failure) while later outer rows still produce
+matches. Also verified both sides two-sided at once, which compiles to
+zero scan/Rewind instructions at all -- just two independent SeekGt+bound
+pairs plus the join-pair check.
+
+7 new DBMF fixtures: `sql-select-016.dbmf` through `018.dbmf` (single-table:
+multi-match, single-row via inclusive both-bounds, and a seek-succeeds/
+zero-rows miss) and `join-range-010.dbmf` through `013.dbmf` (join: outer
+two-sided, inner two-sided demonstrating the per-outer-row reset, both
+sides two-sided together, and a seek-succeeds/immediate-upper-bound-fail
+miss). `make check`: 131/131 (up from 124), all green.
 
 ## 3. DELETE statement support
 

@@ -237,16 +237,14 @@ transactions, a cost-based query planner, aggregates/GROUP BY, and more --
 scoped the way the four course assignments were, into small incremental
 steps):
 - Index-based codegen (single-table or join) still requires the seekable
-  side's *entire* pushed condition to be exactly one comparison against
-  an indexed column (`=`, `>`, `>=`, `<`, or `<=`) -- `ncmp == 1` is
-  checked before seek-planning even looks at what the comparison is
-  (`codegen.c`'s call sites gate on it directly). So an indexable
-  comparison ANDed with anything else, including a *second* bound on the
-  very same column (`WHERE indexedcol > 10 AND indexedcol < 20`, a
-  two-sided range that could in principle be one bounded forward seek),
-  falls back to a full scan with both conjuncts checked as ordinary
-  filters -- there's no partial credit for seeking on one side and
-  filtering the other.
+  side's *entire* pushed condition to be exactly one comparison against an
+  indexed column (`=`, `>`, `>=`, `<`, `<=`), **or** (as of 2026-09-11, see
+  [plan_extensions.md](plan_extensions.md)'s item 2) exactly two conjuncts
+  forming a lower+upper bound on the *same* indexed column (`WHERE
+  indexedcol > 10 AND indexedcol < 20`, now one bounded forward seek) --
+  anything beyond those two shapes, e.g. an indexable comparison ANDed
+  with a condition on a *different* column, still falls back to a full
+  scan with every conjunct checked as an ordinary filter.
 - Only two-way NATURAL JOIN of two base tables -- no 3-way joins, no
   `JOIN ... ON`/`USING`, no outer joins, no `UNION`/`INTERSECT`/`EXCEPT`.
   `codegen_select_join` rejects anything where either side of the

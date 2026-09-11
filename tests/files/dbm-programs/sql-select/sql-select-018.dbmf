@@ -1,0 +1,20 @@
+# Test SELECT-18
+#
+# Assumes this table:
+#
+#   CREATE TABLE numbers(code INTEGER PRIMARY KEY, textcode TEXT, altcode INTEGER);
+#
+# claude: two-sided range with no qualifying rows -- the SeekGt itself
+# succeeds (there are altcode values above 5), but the very first
+# visited row already fails the upper bound (`< 10`), so the walk must
+# stop immediately (zero rows, no crash) rather than continuing past it.
+
+USE 1table-largebtree.cdb
+
+%%
+
+SELECT code FROM numbers WHERE altcode > 5 AND altcode < 10;
+
+%%
+
+# No query results

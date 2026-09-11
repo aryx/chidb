@@ -423,8 +423,12 @@ int chidb_dbm_op_Insert (chidb_stmt *stmt, chidb_dbm_op_t *op)
     chidb_dbm_register_t *rec = &stmt->reg[op->p2];
     chidb_dbm_register_t *key = &stmt->reg[op->p3];
 
-    return chidb_Btree_insertInTable(cur->bt, cur->root, (chidb_key_t) key->value.i,
-                                      rec->value.bin.bytes, (uint16_t) rec->value.bin.nbytes);
+    int rc = chidb_Btree_insertInTable(cur->bt, cur->root, (chidb_key_t) key->value.i,
+                                        rec->value.bin.bytes, (uint16_t) rec->value.bin.nbytes);
+    /* claude: CHIDB_EDUPLICATE is a private code (chidbInt.h) that must not
+     * leak out as a chidb_step() return value -- translate to the public,
+     * documented CHIDB_ECONSTRAINT here, at the DBM/API boundary. */
+    return rc == CHIDB_EDUPLICATE ? CHIDB_ECONSTRAINT : rc;
 }
 
 
@@ -579,7 +583,9 @@ int chidb_dbm_op_IdxInsert (chidb_stmt *stmt, chidb_dbm_op_t *op)
     chidb_key_t idxKey = (chidb_key_t) stmt->reg[op->p2].value.i;
     chidb_key_t pKey = (chidb_key_t) stmt->reg[op->p3].value.i;
 
-    return chidb_Btree_insertInIndex(cur->bt, cur->root, idxKey, pKey);
+    int rc = chidb_Btree_insertInIndex(cur->bt, cur->root, idxKey, pKey);
+    /* claude: see chidb_dbm_op_Insert above -- same private->public translation. */
+    return rc == CHIDB_EDUPLICATE ? CHIDB_ECONSTRAINT : rc;
 }
 
 

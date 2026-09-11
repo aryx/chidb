@@ -19,13 +19,18 @@ implementations now. A single-table or per-join-side comparison (`=`, `>`, `>=`,
 indexed column compiles to an index seek instead of a full scan — including both sides of a join
 independently, which for a fully-indexed two-equality join compiles to zero loop instructions at all
 (see `codegen_select_join`'s file comment), and for a range comparison compiles to a seek plus a
-`Next`/`Prev` walk instead of a full scan with a filter check. `make check` is green (5/5 suites, 124
-DBMF cases) — with the optimizer live for every query. Also fixed along the way: a pre-existing,
-unrelated buffer-overflow crash in `libchisql`'s pretty-printer that broke the shell's `.parse`/`.opt`
-commands (see `src/libchisql/common.c`'s `indent_print()`), and a real gap where `CREATE INDEX` on a
-non-integer column silently built a corrupt index instead of erroring. See
-`docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. the remaining gaps (an
-indexed comparison ANDed with anything else, 3-way joins, and a few others; see
+`Next`/`Prev` walk instead of a full scan with a filter check; a *two-sided* bounded range on the same
+indexed column (`WHERE col > 10 AND col < 20`, on either or both sides of a join) also compiles to one
+seek plus a per-row bound check instead of a full scan (`detect_range_pair`/`SideAccess.cmp2` in
+`codegen.c`). `make check` is green (5/5 suites, 131 DBMF cases) — with the optimizer live for every
+query. Also fixed along the way: a pre-existing, unrelated buffer-overflow crash in `libchisql`'s
+pretty-printer that broke the shell's `.parse`/`.opt` commands (see `src/libchisql/common.c`'s
+`indent_print()`), a real gap where `CREATE INDEX` on a non-integer column silently built a corrupt
+index instead of erroring, and a real gap where a duplicate-key INSERT was misreported by the shell as
+"API used incorrectly" instead of a constraint violation (`CHIDB_EDUPLICATE`/`CHIDB_EMISUSE` numerically
+colliding — see `changes.txt`'s Unreleased entry). See
+`docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. the remaining gaps (3-way
+joins and a few others; see
 `docs/claude_notes/plan_extensions.md` for effort/value notes on each candidate next step, including
 DELETE support, which was never in scope for the four assignments to begin with, and
 `docs/claude_notes/plan_sqlite_extensions.md` for a longer, syllabus-style plan of real-SQLite

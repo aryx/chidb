@@ -1,5 +1,26 @@
 # -*- org -*-
 
+* Unreleased
+
+** bugfix
+- fixed CHIDB_EDUPLICATE/CHIDB_EMISUSE numerically colliding (both 8):
+  a duplicate-key INSERT (e.g. via a CREATE INDEX uniqueness violation)
+  propagated the private CHIDB_EDUPLICATE code up as chidb_step()'s
+  return value, where the shell's switch matched it against the public
+  CHIDB_EMISUSE and printed "API used incorrectly" instead of a
+  constraint-violation message. dbm-ops.c's Insert/IdxInsert opcode
+  handlers now translate CHIDB_EDUPLICATE to the public, documented
+  CHIDB_ECONSTRAINT at the DBM/API boundary, and CHIDB_EDUPLICATE
+  itself was renumbered so it no longer aliases a public code
+
+** codegen / optimizer
+- two-sided index range seeks: `WHERE col > 10 AND col < 20` on an
+  indexed column now compiles to one SeekGt/SeekGe plus a per-row
+  upper-bound check, instead of falling back to a full scan -- applies
+  to both single-table SELECT and either side of a NATURAL JOIN
+  (including both sides at once, and correctly re-bounding per outer
+  row on a join's inner side). 7 new DBMF fixtures; make check: 131/131
+
 * 2.0 (Q3 2026) (chidb assignments 1-4 implemented: B-Tree, DBM, code generator, query optimizer)
 
 ** btree

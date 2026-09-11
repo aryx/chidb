@@ -1,0 +1,18 @@
+# Test JOIN-RANGE-12: two-sided bounded ranges on BOTH sides at once --
+# the highest-risk combination for the SideAccess.cmp2 extension, since
+# it exercises both new literal registers (r_lit1b/r_lit2b) and both new
+# patch lists (patch_die for the outer bound, patch_stop_inner for the
+# inner bound) together. Compiles to zero Rewind/full-scan instructions
+# at all: SeekGt+bound-check on both sides, same as a fully-indexed
+# equality join but for ranges.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name, budget FROM courses NATURAL JOIN departments WHERE courses.code > 150 AND courses.code < 350 AND departments.budget > 100 AND departments.budget < 400;
+
+%%
+
+"Calculus"           "Math"  200
+"Advanced Calculus"  "Math"  200

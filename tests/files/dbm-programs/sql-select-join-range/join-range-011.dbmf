@@ -1,0 +1,21 @@
+# Test JOIN-RANGE-11: two-sided bounded range on the right (inner)
+# table's indexed column. The trickier case for SideAccess.cmp2 -- the
+# inner range must be re-seeked and independently bounded-checked for
+# *every* outer row, and a bound failure must only end that one outer
+# row's inner walk (routing to addr_done_inner), not abort the whole
+# query the way the same failure on the outer side does. Engineering
+# (budget 500) is correctly excluded from every course that joins to
+# it, while Math (200) and Physics (300) still come through for the
+# courses that join to them.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name, budget FROM courses NATURAL JOIN departments WHERE departments.budget > 100 AND departments.budget < 400;
+
+%%
+
+"Calculus"           "Math"     200
+"Advanced Calculus"  "Math"     200
+"Thermodynamics"     "Physics"  300

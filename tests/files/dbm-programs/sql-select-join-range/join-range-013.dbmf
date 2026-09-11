@@ -1,0 +1,16 @@
+# Test JOIN-RANGE-13: two-sided range on the outer table where the
+# initial SeekGt succeeds (there IS a qualifying lower-bound entry) but
+# that very first visited row already fails the upper bound -- the walk
+# must stop immediately (zero rows, no crash), not read one extra row
+# past the boundary the way relying on cursor exhaustion alone would
+# risk.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 50 AND courses.code < 60;
+
+%%
+
+# No query results

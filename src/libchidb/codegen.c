@@ -232,6 +232,36 @@ static bool index_seek_walks_forward(IndexSeekKind kind)
     return kind == INDEX_GT || kind == INDEX_GE;
 }
 
+/* claude: extends the single-comparison index seek above to a *two-sided*
+ * bounded range on the same indexed column, e.g. `WHERE col > 10 AND col <
+ * 20`. Recognizes exactly the shape "two conjuncts, same column, one a
+ * lower bound (>/>=) and the other an upper bound (</<=)" -- anything else
+ * (a third conjunct, both bounds on the same side, two different columns,
+ * an equality mixed with a bound, ...) returns false and the caller falls
+ * back to its existing single-comparison-or-scan logic unchanged. On
+ * success, `*lo` and `*hi` are the indices into `cmps` of the lower/upper bound
+ * (always normalized this way regardless of which order the AND put them
+ * in), so the caller can always seek forward from the lower bound and stop
+ * the walk once the upper bound fails, rather than needing a separate
+ * descending variant too. */
+static bool detect_range_pair(ResolvedCmp *cmps, int ncmp, int *lo, int *hi)
+{
+    if (ncmp != 2)
+        return false;
+
+    IndexSeekKind k0, k1;
+    if (!index_seek_kind(cmps[0].op, &k0) || !index_seek_kind(cmps[1].op, &k1))
+        return false;
+    if (cmps[0].col.side != cmps[1].col.side || cmps[0].col.idx != cmps[1].col.idx)
+        return false;
+
+    bool k0_lo = (k0 == INDEX_GT || k0 == INDEX_GE), k0_hi = (k0 == INDEX_LT || k0 == INDEX_LE);
+    bool k1_lo = (k1 == INDEX_GT || k1 == INDEX_GE), k1_hi = (k1 == INDEX_LT || k1 == INDEX_LE);
+    if (k0_lo && k1_hi) { *lo = 0; *hi = 1; return true; }
+    if (k1_lo && k0_hi) { *lo = 1; *hi = 0; return true; }
+    return false;
+}
+
 static bool resolve_comparison(Condition_t *leaf, ColResolver resolve, void *ctx, ResolvedCmp *out)
 {
     if (leaf->t != RA_COND_EQ && leaf->t != RA_COND_LT && leaf->t != RA_COND_GT &&
@@ -643,6 +673,17 @@ static void set_output_columns(chidb_stmt *stmt, Column_t *columns, int *out_idx
  * forward) from there, re-doing the IdxPKey+table-seek step for each
  * entry in turn, until the index cursor itself runs out.
  *
+ * `bound2`, when non-NULL (see detect_range_pair), is a second, upper
+ * bound on the *same* indexed column -- `kind`/`cmp` is always the lower
+ * bound in that case, so the walk always goes forward. Unlike the
+ * single-bound case, the walk can't rely on the cursor's own exhaustion
+ * to know when to stop (there may be plenty more index entries past the
+ * upper bound); instead each visited row's column value is checked
+ * against `bound2` directly, and a failure there stops the walk exactly
+ * where a natural Next exhaustion would -- not "skip this row and keep
+ * walking", since the index is sorted and once one row fails the upper
+ * bound, every later one would too.
+ *
  * Both cursors are opened before either Seek runs, so every failure
  * point -- an index miss (no qualifying entry at all), or the table seek
  * (shouldn't fail, since the PKey just came out of the index) -- can
@@ -650,9 +691,13 @@ static void set_output_columns(chidb_stmt *stmt, Column_t *columns, int *out_idx
  * the loop would otherwise continue (or, for INDEX_EQ, straight to that
  * tail), rather than aborting outright. */
 static int codegen_select_indexed(chidb_stmt *stmt, chidb_schema_item_t *tbl, chidb_schema_item_t *idx,
-                                   Column_t *columns, int *out_idx, int nout, ResolvedCmp *cmp, IndexSeekKind kind)
+                                   Column_t *columns, int *out_idx, int nout, ResolvedCmp *cmp, IndexSeekKind kind,
+                                   ResolvedCmp *bound2)
 {
-    int r_idxroot = 0, r_root = 1, r_lit = 2, r_pkey = 3, r_out0 = 4;
+    int r_idxroot = 0, r_root = 1, r_lit = 2, r_pkey = 3;
+    int32_t r_lit2 = bound2 ? 4 : -1;
+    int32_t r_tmp2 = bound2 ? 5 : -1;
+    int32_t r_out0 = bound2 ? 6 : 4;
 
     int pc = 0;
     emit(stmt, &pc, Op_Integer, (int32_t) idx->root_page, r_idxroot, 0, NULL);
@@ -660,11 +705,26 @@ static int codegen_select_indexed(chidb_stmt *stmt, chidb_schema_item_t *tbl, ch
     emit(stmt, &pc, Op_Integer, (int32_t) tbl->root_page, r_root, 0, NULL);
     emit(stmt, &pc, Op_OpenRead, 1, r_root, column_count(columns), NULL);
     emit_literal(stmt, &pc, cmp->lit, r_lit);
+    if (bound2)
+        emit_literal(stmt, &pc, bound2->lit, r_lit2);
 
     int addr_seek_idx = emit(stmt, &pc, index_seek_opcode(kind), 0, -1, r_lit, NULL);
     int addr_loop = pc;
     emit(stmt, &pc, Op_IdxPKey, 0, r_pkey, 0, NULL);
     int addr_seek_tbl = emit(stmt, &pc, Op_Seek, 1, -1, r_pkey, NULL);
+
+    int addr_bound2_fail = -1;
+    if (bound2)
+    {
+        /* cursor 1 is the table cursor here (cursor 0 is the index), so
+         * this can't reuse emit_rcol -- it hardcodes cursor 0 for side 0. */
+        if (column_is_primary_key(columns, bound2->col.idx))
+            emit(stmt, &pc, Op_Key, 1, r_tmp2, 0, NULL);
+        else
+            emit(stmt, &pc, Op_Column, 1, bound2->col.idx, r_tmp2, NULL);
+        addr_bound2_fail = emit(stmt, &pc, bound2->op, r_lit2, -1, r_tmp2, NULL);
+    }
+
     emit_output_columns(stmt, &pc, 1, columns, out_idx, nout, r_out0);
 
     int addr_after = (kind == INDEX_EQ)
@@ -673,6 +733,8 @@ static int codegen_select_indexed(chidb_stmt *stmt, chidb_schema_item_t *tbl, ch
     stmt->ops[addr_seek_tbl].p2 = addr_after;
 
     int addr_tail = pc;
+    if (bound2)
+        stmt->ops[addr_bound2_fail].p2 = addr_tail;
     emit(stmt, &pc, Op_Close, 1, 0, 0, NULL);
     emit(stmt, &pc, Op_Close, 0, 0, 0, NULL);
     emit(stmt, &pc, Op_Halt, 0, 0, 0, NULL);
@@ -779,13 +841,17 @@ static bool resolve_join_column_cb(void *ctx0, ColumnReference_t *ref, RCol *out
  *   - ACC_RANGESEEK: the side's pushed condition is exactly one `<`/`<=`/
  *     `>`/`>=` on an indexed column (assignment_opt.html's index point,
  *     extended from equality to any comparison, same as
- *     codegen_select_indexed) -- seek the index to the boundary entry
- *     and then walk it forward or backward (index_seek_walks_forward),
- *     re-deriving the matching table row (IdxPKey + a table Seek) at
- *     each step, until the index cursor itself runs out. Loops, same as
- *     ACC_SCAN, just driven by the index cursor instead of the table
- *     cursor, and with no per-row filter needed since the walk direction
- *     alone guarantees every visited entry still qualifies.
+ *     codegen_select_indexed), or exactly two conjuncts forming a
+ *     lower+upper bound on the same indexed column (detect_range_pair,
+ *     same extension as codegen_select's single-table path) -- seek the
+ *     index to the boundary entry and then walk it forward or backward
+ *     (index_seek_walks_forward), re-deriving the matching table row
+ *     (IdxPKey + a table Seek) at each step, until the index cursor
+ *     itself runs out *or*, in the two-sided case, until the second
+ *     bound fails on a visited row (checked directly, since sorted order
+ *     means one failure implies every later one too -- see cmp2 below).
+ *     Loops, same as ACC_SCAN, just driven by the index cursor instead
+ *     of the table cursor.
  * An index-driven side's boundary is a compile-time literal, so it
  * never depends on the other side's current row: an ACC_EQSEEK side is
  * therefore positioned once, up front, before any loop runs at all, and
@@ -810,25 +876,37 @@ typedef struct
 {
     enum { ACC_SCAN, ACC_EQSEEK, ACC_RANGESEEK } kind;
     chidb_schema_item_t *idx; /* set iff kind != ACC_SCAN */
-    ResolvedCmp *cmp;         /* the driving conjunct, iff kind != ACC_SCAN */
+    ResolvedCmp *cmp;         /* the driving (seek) conjunct, iff kind != ACC_SCAN */
+    ResolvedCmp *cmp2;        /* the upper bound of a two-sided range, iff set (kind == ACC_RANGESEEK only) */
     opcode_t seek_op;         /* Op_Seek/SeekGt/SeekGe/SeekLt/SeekLe, iff kind != ACC_SCAN */
     bool forward;             /* Next (true) vs Prev (false), iff kind == ACC_RANGESEEK */
 } SideAccess;
 
 static SideAccess plan_side_access(chidb *db, const char *table_name, Column_t *columns, ResolvedCmp *cmps, int ncmp)
 {
-    SideAccess sa = { ACC_SCAN, NULL, NULL, Op_Seek, false };
+    SideAccess sa = { ACC_SCAN, NULL, NULL, NULL, Op_Seek, false };
 
     IndexSeekKind kind;
-    if (ncmp != 1 || !index_seek_kind(cmps[0].op, &kind))
-        return sa;
+    ResolvedCmp *primary, *bound2 = NULL;
+    if (ncmp == 1 && index_seek_kind(cmps[0].op, &kind))
+        primary = &cmps[0];
+    else
+    {
+        int lo, hi;
+        if (!detect_range_pair(cmps, ncmp, &lo, &hi))
+            return sa;
+        primary = &cmps[lo];
+        bound2 = &cmps[hi];
+        index_seek_kind(primary->op, &kind);
+    }
 
-    chidb_schema_item_t *idx = chidb_schema_find_index_on(db, table_name, column_name_at(columns, cmps[0].col.idx));
+    chidb_schema_item_t *idx = chidb_schema_find_index_on(db, table_name, column_name_at(columns, primary->col.idx));
     if (!idx)
         return sa;
 
     sa.idx = idx;
-    sa.cmp = &cmps[0];
+    sa.cmp = primary;
+    sa.cmp2 = bound2;
     sa.seek_op = index_seek_opcode(kind);
     if (kind == INDEX_EQ)
         sa.kind = ACC_EQSEEK;
@@ -980,8 +1058,10 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     int32_t r_root2 = next_reg++;
     int32_t r_lit1 = use_index1 ? next_reg++ : -1;
     int32_t r_pkey1 = use_index1 ? next_reg++ : -1;
+    int32_t r_lit1b = side1acc.cmp2 ? next_reg++ : -1;
     int32_t r_lit2 = use_index2 ? next_reg++ : -1;
     int32_t r_pkey2 = use_index2 ? next_reg++ : -1;
+    int32_t r_lit2b = side2acc.cmp2 ? next_reg++ : -1;
     int32_t r_lit_base = next_reg;
     next_reg += n1_scan + n2_scan + nt;
     int32_t r_tmp_a = next_reg++;
@@ -1010,8 +1090,12 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
 
     if (use_index1)
         emit_literal(stmt, &pc, side1acc.cmp->lit, r_lit1);
+    if (side1acc.cmp2)
+        emit_literal(stmt, &pc, side1acc.cmp2->lit, r_lit1b);
     if (use_index2)
         emit_literal(stmt, &pc, side2acc.cmp->lit, r_lit2);
+    if (side2acc.cmp2)
+        emit_literal(stmt, &pc, side2acc.cmp2->lit, r_lit2b);
 
     /* Addresses whose failure means "zero rows, close everything opened
      * above, and stop" -- always safe, since every cursor is open by now. */
@@ -1061,8 +1145,31 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
         {
             emit(stmt, &pc, Op_IdxPKey, 2, r_pkey1, 0, NULL);
             patch_die[npatch_die++] = emit(stmt, &pc, Op_Seek, 0, -1, r_pkey1, NULL);
+            /* Two-sided range: check the upper bound directly against this
+             * row (cursor 0 is side1's table cursor). A failure here means
+             * the whole outer walk is exhausted (sorted order: no later
+             * entry can pass either), same as any other patch_die case --
+             * unlike an ACC_SCAN filter failure, this must NOT retry via
+             * the outer's own advance instruction. */
+            if (side1acc.cmp2)
+            {
+                if (column_is_primary_key(cols1, side1acc.cmp2->col.idx))
+                    emit(stmt, &pc, Op_Key, 0, r_tmp_a, 0, NULL);
+                else
+                    emit(stmt, &pc, Op_Column, 0, side1acc.cmp2->col.idx, r_tmp_a, NULL);
+                patch_die[npatch_die++] = emit(stmt, &pc, side1acc.cmp2->op, r_lit1b, -1, r_tmp_a, NULL);
+            }
         }
     }
+
+    /* Unlike patch_die (routes straight to addr_tail), a side2 two-sided
+     * range's upper-bound failure must only end *this outer row's* inner
+     * walk, not the whole query -- there may be more outer rows left. It
+     * needs the same "skip the retry, land right after the inner advance
+     * instruction" treatment addr_pos1 itself gets below (see the comment
+     * further down), so it's patched once addr_done_inner is known. */
+    int *patch_stop_inner = malloc(sizeof(int) * 1);
+    int npatch_stop_inner = 0;
 
     bool inner_loops = (side2acc.kind != ACC_EQSEEK);
     int addr_pos1 = -1;
@@ -1076,6 +1183,14 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
         {
             emit(stmt, &pc, Op_IdxPKey, 3, r_pkey2, 0, NULL);
             patch_die[npatch_die++] = emit(stmt, &pc, Op_Seek, 1, -1, r_pkey2, NULL);
+            if (side2acc.cmp2)
+            {
+                if (column_is_primary_key(cols2, side2acc.cmp2->col.idx))
+                    emit(stmt, &pc, Op_Key, 1, r_tmp_a, 0, NULL);
+                else
+                    emit(stmt, &pc, Op_Column, 1, side2acc.cmp2->col.idx, r_tmp_a, NULL);
+                patch_stop_inner[npatch_stop_inner++] = emit(stmt, &pc, side2acc.cmp2->op, r_lit2b, -1, r_tmp_a, NULL);
+            }
         }
     }
 
@@ -1128,6 +1243,8 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
         stmt->ops[patch_inner[k]].p2 = addr_retry_inner;
     if (addr_pos1 >= 0)
         stmt->ops[addr_pos1].p2 = addr_done_inner;
+    for (int k = 0; k < npatch_stop_inner; k++)
+        stmt->ops[patch_stop_inner[k]].p2 = addr_done_inner;
 
     /* And the outer side: an ACC_SCAN side1 filter failing skips
      * straight to the outer's advance (the whole inner stage never ran
@@ -1168,6 +1285,7 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     free(patch_die);
     free(patch_outer);
     free(patch_inner);
+    free(patch_stop_inner);
     free(side1_cmps);
     free(side2_cmps);
     free(top_cmps);
@@ -1270,16 +1388,30 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
     }
 
     /* assignment_opt.html point 3, extended from equality to any
-     * comparison (see IndexSeekKind): a single top-level `indexed-col OP
-     * val` (or `val OP indexed-col`) compiles to an index seek instead
-     * of a full scan -- doesn't extend to a multi-conjunct WHERE. */
+     * comparison (see IndexSeekKind), and further extended to a two-sided
+     * bounded range on the same column (see detect_range_pair): a single
+     * top-level `indexed-col OP val`, or exactly two conjuncts forming a
+     * lower+upper bound on the same indexed column, compiles to an index
+     * seek instead of a full scan -- anything else falls through to the
+     * scan below unchanged. */
     IndexSeekKind seek_kind;
+    ResolvedCmp *primary = NULL, *bound2 = NULL;
+    int lo, hi;
     if (ncmp == 1 && index_seek_kind(cmps[0].op, &seek_kind))
+        primary = &cmps[0];
+    else if (detect_range_pair(cmps, ncmp, &lo, &hi))
     {
-        chidb_schema_item_t *idx = chidb_schema_find_index_on(db, table_name, column_name_at(columns, cmps[0].col.idx));
+        primary = &cmps[lo];
+        bound2 = &cmps[hi];
+        index_seek_kind(primary->op, &seek_kind);
+    }
+
+    if (primary)
+    {
+        chidb_schema_item_t *idx = chidb_schema_find_index_on(db, table_name, column_name_at(columns, primary->col.idx));
         if (idx)
         {
-            int rc = codegen_select_indexed(stmt, tbl, idx, columns, out_idx, nout, &cmps[0], seek_kind);
+            int rc = codegen_select_indexed(stmt, tbl, idx, columns, out_idx, nout, primary, seek_kind, bound2);
             free(cmps);
             free(out_idx);
             free(parsed);

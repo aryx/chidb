@@ -57,7 +57,14 @@
 #define CHIDB_ECELLNO (5)
 #define CHIDB_ECORRUPTHEADER (6)
 #define CHIDB_ENOTFOUND (9)
-#define CHIDB_EDUPLICATE (8)
+/* claude: was (8), colliding with the public CHIDB_EMISUSE -- a duplicate-key
+ * insert propagated up through chidb_step() as raw 8 and got misreported by
+ * the shell as "API used incorrectly" instead of a constraint violation.
+ * Callers that can observe this code (dbm-ops.c's Insert/IdxInsert handlers)
+ * translate it to the public CHIDB_ECONSTRAINT before it can reach the API
+ * boundary, but renumbering here too so it no longer aliases a public code
+ * by construction. */
+#define CHIDB_EDUPLICATE (11)
 #define CHIDB_EEMPTY (9)
 #define CHIDB_EPARSE (10)
 

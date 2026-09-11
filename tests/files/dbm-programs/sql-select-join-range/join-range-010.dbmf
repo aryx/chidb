@@ -1,0 +1,16 @@
+# Test JOIN-RANGE-10: two-sided bounded range on the left (outer)
+# table's indexed column -- compiles to a single SeekGt plus a per-row
+# upper-bound check (codegen.c's detect_range_pair / SideAccess.cmp2),
+# instead of a full scan or the single-sided range this suite otherwise
+# exercises.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 150 AND courses.code < 350;
+
+%%
+
+"Calculus"           "Math"
+"Advanced Calculus"  "Math"
