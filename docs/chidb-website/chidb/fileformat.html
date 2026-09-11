@@ -1,0 +1,796 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>The chidb File Format &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="The chidb Architecture" href="architecture.html" />
+    <link rel="prev" title="Introduction" href="intro.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+          <li><a href="index.html">chidb</a></li>
+            <li class="active">The chidb File Format</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="the-chidb-file-format">
+<span id="chidb-fileformat"></span><h1>The chidb File Format<a class="headerlink" href="fileformat.html#the-chidb-file-format" title="Link to this heading">¶</a></h1>
+<p>This section describes the format of a chidb database file. We assume a
+basic knowledge of RDBMS (a student should know what a table and an
+index is) and what a B-Tree is. This documentation does not explain
+<em>how</em> the B-Tree operations must be performed, just how the B-Tree
+is stored using a specific file format.</p>
+<p>This section presents the file format in a top-down fashion. We will start
+by presenting a high-level overview of the file, where certain details will
+seem handwavy. However, throughout the section, all these details will become
+increasingly clear. By the end of this section, the file format will be
+specified in enough detail for you to implement B-Tree operations on chidb files.</p>
+<section id="file-format-overview">
+<h2>File format overview<a class="headerlink" href="fileformat.html#file-format-overview" title="Link to this heading">¶</a></h2>
+<p>The chidb file format is a subset of the <a class="reference external" href="http://www.sqlite.org/fileformat.html">SQLite file format</a>
+and, thus, shares many common traits with it. A chidb file can store any
+number of tables, physically stored as a B-Tree, and a table can have
+records with any number of fields of different datatypes. Indexes are
+also supported, and also stored as B-Trees. However, chidb makes the
+following simplifying assumptions:</p>
+<ul class="simple">
+<li><p>Each table must have an explicit primary key (SQLite allows tables
+without primary keys to be created), and the primary key must be a
+single unsigned 4 byte integer field.</p></li>
+<li><p>Indexes can only be created for unsigned 4-byte integer unique
+fields.</p></li>
+<li><p>Only a subset of the SQLite datatypes are supported.</p></li>
+<li><p>The size of a record cannot exceed the size of a database page (more
+specifically, SQLite overflow pages are not supported). This
+effectively also limits the size of certain datatypes (such as
+strings).</p></li>
+<li><p>The current format is geared towards using the database file only for
+insertion and querying. Although record removal and update are not
+explicitly disallowed, their implementation cannot be done
+efficiently in the current format.</p></li>
+<li><p>A user is assumed to have exclusive access to the database file.</p></li>
+</ul>
+<p>These assumptions were made to simplify the implementation of many
+low-level details, so that students can focus on higher-level ideas (but
+still requiring a healthy amount of low-level programming). For example,
+although supporting database records that span multiple pages is a
+necessary feature in production databases, its implementation requires a
+fair amount of low-level programming that is algorithmically dull (at
+least when compared with algorithms for B-Tree insertion, query
+optimization, etc.).</p>
+<p>Figure <a class="reference internal" href="fileformat.html#chidb-fig-physlog"><span class="std std-ref">Physical and logical file organization</span></a> summarizes the file organization, and the
+relationship between logical and physical organization.</p>
+<figure class="align-default" id="id1">
+<span id="chidb-fig-physlog"></span><img alt="Physical and logical file organization" src="../_images/physlog.png" />
+<figcaption>
+<p><span class="caption-text">Physical and logical file organization</span><a class="headerlink" href="fileformat.html#id1" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+<section id="logical-organization">
+<h3>Logical organization<a class="headerlink" href="fileformat.html#logical-organization" title="Link to this heading">¶</a></h3>
+<p>A chidb file contains the following:</p>
+<ul class="simple">
+<li><p>A file header.</p></li>
+<li><p>0 or more tables.</p></li>
+<li><p>0 or more indexes.</p></li>
+</ul>
+<p>The <strong>file header</strong> contains metadata about the database file, most of
+which is relevant to the physical organization of the file. The file
+header does <em>not</em> contain the database schema (i.e., the specification
+of tables and indexes in the database), which is stored in a special
+table called the <em>schema table</em> (described in <a class="reference internal" href="fileformat.html#chidb-schema"><span class="std std-ref">The schema table</span></a>).</p>
+<p>Each <strong>table</strong> in the database file is stored as a B<sup>+</sup>-Tree
+(we will refer to these simply as <strong>table B-Trees</strong>). The
+entries of this tree are <strong>database records</strong> (a collection of values
+corresponding to a row in the table). The key for each entry will be its
+primary key. Since a table is a B<sup>+</sup>-Tree, the internal nodes
+do not contain entries but, rather, are used to navigate the tree.</p>
+<p>Each <strong>index</strong> in the database file is stored as a B-Tree (we will refer
+to these as <strong>index B-Trees</strong>). Assuming we have a relation
+<span class="math notranslate nohighlight">\(R(pk,\ldots,ik,\ldots)\)</span> where <span class="math notranslate nohighlight">\(pk\)</span> is the primary key, and
+<span class="math notranslate nohighlight">\(ik\)</span> is the attribute we want to create an index over, each entry
+in an index B-Tree will be a <span class="math notranslate nohighlight">\((k_1, k_2)\)</span> pair, where <span class="math notranslate nohighlight">\(k_1\)</span>
+is a value of <span class="math notranslate nohighlight">\(ik\)</span> and <span class="math notranslate nohighlight">\(k_2\)</span> is the value of the primary key
+(<span class="math notranslate nohighlight">\(pk\)</span>) in the record where <span class="math notranslate nohighlight">\(ik=k_1\)</span>. More formally, using
+relational algebra:</p>
+<div class="math notranslate nohighlight">
+\[k_2=\Pi_{pk} \sigma_{ik=k_1} R\]</div>
+<p>The entries are ordered (and thus keyed) by the value of <span class="math notranslate nohighlight">\(k_1\)</span>.
+Note that an index B-Tree contains as many entries as the table it
+indexes. Furthermore, since it is a B-Tree (as opposed to a
+B<sup>+</sup>-Tree), both the internal and leaf nodes contain entries
+(the internal nodes, additionally, include pointers to child nodes).</p>
+</section>
+<section id="physical-organization">
+<span id="chidb-physorg"></span><h3>Physical organization<a class="headerlink" href="fileformat.html#physical-organization" title="Link to this heading">¶</a></h3>
+<p>A chidb file is divided into <strong>pages</strong> of size <span class="math notranslate nohighlight">\(PageSize\)</span>,
+numbered from 1. Each page is used to store a table or index B-Tree
+node. Pages are sometimes referred to as ’blocks’ in the literature. They
+are the units of transfer between secondary storage and memory.</p>
+<p>A page contains a <strong>page header</strong> with metadata about the page, such
+as the type of page (e.g., does it store an internal table node? a leaf
+index node?). The space not used by the header is available to store
+<strong>cells</strong>, which are used to store B-Tree entries:</p>
+<ul class="simple">
+<li><p><strong>Leaf Table cell</strong>: <span class="math notranslate nohighlight">\(\langle Key, DBRecord \rangle\)</span>, where
+<span class="math notranslate nohighlight">\(DBRecord\)</span> is a database record and <span class="math notranslate nohighlight">\(Key\)</span> is its primary key.</p></li>
+<li><p><strong>Internal Table cell</strong>: <span class="math notranslate nohighlight">\(\langle Key, ChildPage \rangle\)</span>, where
+<span class="math notranslate nohighlight">\(ChildPage\)</span> is the number of the page containing the entries with
+keys less than or equal to <span class="math notranslate nohighlight">\(Key\)</span>.</p></li>
+<li><p><strong>Leaf Index cell</strong>: <span class="math notranslate nohighlight">\(\langle KeyIdx, KeyPk \rangle\)</span>, where
+<span class="math notranslate nohighlight">\(KeyIdx\)</span> and <span class="math notranslate nohighlight">\(KeyPk\)</span> are <span class="math notranslate nohighlight">\(k_1\)</span> and <span class="math notranslate nohighlight">\(k_2\)</span>, respectively, as
+defined earlier.</p></li>
+<li><p><strong>Internal Index cell</strong>: <span class="math notranslate nohighlight">\(\langle KeyIdx, KeyPk, ChildPage \rangle\)</span>,
+where <span class="math notranslate nohighlight">\(KeyIdx\)</span> and <span class="math notranslate nohighlight">\(KeyPk\)</span> are defined as above, and
+<span class="math notranslate nohighlight">\(ChildPage\)</span> is the number of the page containing the entries with
+keys less than <span class="math notranslate nohighlight">\(KeyIdx\)</span>.</p></li>
+</ul>
+<p>Page 1 in the database is special, as its first 100 bytes are used by
+the file header. Thus, the B-Tree node stored in page 1 can only use
+<span class="math notranslate nohighlight">\((PageSize - 100)\)</span> bytes.</p>
+<p>Note how all internal cells store a key and a
+<span class="math notranslate nohighlight">\(ChildPage\)</span> “pointer”. Although it is common to refer to this field as
+a “pointer” (and it is often drawn as such), it is important to
+understand that, when storing a B-Tree in a <em>file</em>, this “pointer” is
+simply the number of the page where the referenced node can be found.</p>
+<p>However, a B-Tree node must have, by definition, <span class="math notranslate nohighlight">\(n\)</span> keys and <span class="math notranslate nohighlight">\(n+1\)</span>
+pointers. Using cells, however, we can only store <span class="math notranslate nohighlight">\(n\)</span> pointers.
+Given a node <span class="math notranslate nohighlight">\(B\)</span>,
+an extra pointer is necessary to store the number of the page containing
+the node <span class="math notranslate nohighlight">\(B'\)</span> with keys greater than all the keys in <span class="math notranslate nohighlight">\(B\)</span>.
+This extra pointer is stored in the page header and is called
+<span class="math notranslate nohighlight">\(RightPage\)</span>. The following figure shows a B-Tree both logically and
+physically. Notice how the <span class="math notranslate nohighlight">\(RightPage\)</span> pointer is, essentially, the
+“rightmost pointer” in a B-Tree node.</p>
+<figure class="align-default" id="id2">
+<img alt="Logical and physical view of a table B-Tree." src="../_images/rightpage.png" />
+<figcaption>
+<p><span class="caption-text">Logical and physical view of a table B-Tree.</span><a class="headerlink" href="fileformat.html#id2" title="Link to this image">¶</a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+<section id="datatypes">
+<h2>Datatypes<a class="headerlink" href="fileformat.html#datatypes" title="Link to this heading">¶</a></h2>
+<p>chidb uses a limited number of integer and string datatypes, summarized
+in the following table. All integer types are big-endian. You must be
+careful to take this into account when using little-endian machines
+(such as x86 machines).</p>
+<p>All string types use lower ASCII encoding (or, equivalently, 1-byte UTF-8).</p>
+<p>Note that these are not the types for the database records (which are
+described in <a class="reference internal" href="fileformat.html#chidb-records"><span class="std std-ref">Database records</span></a>) but, rather, datatypes used
+internally in the database file.</p>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+<th class="head"><p><strong>Range</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">uint8</span></code></p></td>
+<td><p>Unsigned 1-byte integer</p></td>
+<td><p><span class="math notranslate nohighlight">\(0 \leq x \leq 255\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">uint16</span></code></p></td>
+<td><p>Unsigned 2-byte integer</p></td>
+<td><p><span class="math notranslate nohighlight">\(0 \leq x \leq 65,535\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>Unsigned 4-byte integer</p></td>
+<td><p><span class="math notranslate nohighlight">\(0 \leq x \leq 2^{32}-1\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">int8</span></code></p></td>
+<td><p>Signed 1-byte integer</p></td>
+<td><p><span class="math notranslate nohighlight">\(-128 \leq x \leq 127\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">int16</span></code></p></td>
+<td><p>Signed 2-byte integer</p></td>
+<td><p><span class="math notranslate nohighlight">\(-32768 \leq x \leq 32767\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">int32</span></code></p></td>
+<td><p>Signed 4-byte integer</p></td>
+<td><p><span class="math notranslate nohighlight">\(-2^{31} \leq x \leq 2^{31}-1\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">varint8</span></code></p></td>
+<td><p>Unsigned 1-byte varint</p></td>
+<td><p><span class="math notranslate nohighlight">\(0 \leq x \leq 127\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">varint32</span></code></p></td>
+<td><p>Unsigned 4-byte varint</p></td>
+<td><p><span class="math notranslate nohighlight">\(0 \leq x \leq 2^{28}-1\)</span></p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">string(n)</span></code></p></td>
+<td><p>Nul-terminated string</p></td>
+<td><p># of characters <span class="math notranslate nohighlight">\(\leq\)</span> <code class="docutils literal notranslate"><span class="pre">n</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">raw-string(n)</span></code></p></td>
+<td><p>Character array</p></td>
+<td><p># of characters <span class="math notranslate nohighlight">\(\leq\)</span> <code class="docutils literal notranslate"><span class="pre">n</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">varint</span></code> is a special integer type that is supported for compatibility with
+SQLite. A <code class="docutils literal notranslate"><span class="pre">varint</span></code> is a variable-length integer encoding that can store a 64-bit
+signed integer using 1-9 bytes, depending on the value of the integer.
+To simplify the chidb file format, this datatype is not fully supported.
+However, since the type is essential to the SQLite data format, 1-byte
+and 4-byte <code class="docutils literal notranslate"><span class="pre">varint</span></code> types are supported (which we will refer to as <code class="docutils literal notranslate"><span class="pre">varint8</span></code>
+and <code class="docutils literal notranslate"><span class="pre">varint32</span></code>, respectively). Note that, in chidb, these are <em>not</em> variable length
+integers; they just follow the format of a variable-length integer
+encoding in the particular cases when 1 or 4 bytes are used. Thus,
+whenever this document specifies that a <code class="docutils literal notranslate"><span class="pre">varint32</span></code> is used, that means that exactly
+4 bytes (with the format explained below) will be used. There is no need
+to determine what the “length” of the integer is.</p>
+<p>In a <code class="docutils literal notranslate"><span class="pre">varint8</span></code>, the most significant bit is always set to <code class="docutils literal notranslate"><span class="pre">0</span></code>. The remainder of
+the byte is used to store an unsigned 7-bit integer:</p>
+<p><code class="docutils literal notranslate"><span class="pre">0xxxxxxx</span></code></p>
+<p>In a <code class="docutils literal notranslate"><span class="pre">varint32</span></code>, the most significant bit of the three most significant bytes is
+always set to <code class="docutils literal notranslate"><span class="pre">1</span></code> and the most significant bit of the least
+significant byte is always set to <code class="docutils literal notranslate"><span class="pre">0</span></code>. The remaining bits are used to
+store a big-endian unsigned 28-bit integer:</p>
+<p><code class="docutils literal notranslate"><span class="pre">1xxxxxxx</span> <span class="pre">1xxxxxxx</span> <span class="pre">1xxxxxxx</span> <span class="pre">0xxxxxxx</span></code></p>
+</section>
+<section id="file-header">
+<h2>File header<a class="headerlink" href="fileformat.html#file-header" title="Link to this heading">¶</a></h2>
+<p>The first 100 bytes of a chidb file contain a header with metadata about
+the file. This file header uses the same format as SQLite and, since
+many SQLite features are not supported in chidb, most of the header
+contains constant values. The layout of the header is shown the following figure.</p>
+<figure class="align-default">
+<img alt="chidb file header" src="../_images/fileheader.png" />
+</figure>
+<p>Note that, at this point, all values except
+<span class="math notranslate nohighlight">\(PageSize\)</span> can be safely ignored, but they must all be properly
+initialized to the values shown in the following table.</p>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Bytes</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>16-17</p></td>
+<td><p><span class="math notranslate nohighlight">\(PageSize\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint16</span></code></p></td>
+<td><p>Size of database page</p></td>
+</tr>
+<tr class="row-odd"><td><p>24-27</p></td>
+<td><p><span class="math notranslate nohighlight">\(FileChangeCounter\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>Initialized to <code class="docutils literal notranslate"><span class="pre">0</span></code>. Each time a modification is made to the database, this counter is increased.</p></td>
+</tr>
+<tr class="row-even"><td><p>40-43</p></td>
+<td><p><span class="math notranslate nohighlight">\(SchemaVersion\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>Initialized to <code class="docutils literal notranslate"><span class="pre">0</span></code>. Each time the database schema is modified, this counter is increased.</p></td>
+</tr>
+<tr class="row-odd"><td><p>48-51</p></td>
+<td><p><span class="math notranslate nohighlight">\(PageCacheSize\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>Default pager cache size in bytes. Initialized to <code class="docutils literal notranslate"><span class="pre">20000</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>60-43</p></td>
+<td><p><span class="math notranslate nohighlight">\(UserCookie\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>Available to the user for read-write access. Initialized to <code class="docutils literal notranslate"><span class="pre">0</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>Furthermore,
+a chidb file will only be considered valid if it has the same initial values
+shown in the above table. This means that, when implementing chidb, you
+do not need to worry about updating <span class="math notranslate nohighlight">\(FileChangeCounter\)</span> and <span class="math notranslate nohighlight">\(SchemaVersion\)</span>.</p>
+</section>
+<section id="table-pages">
+<h2>Table pages<a class="headerlink" href="fileformat.html#table-pages" title="Link to this heading">¶</a></h2>
+<p>A table page is composed of four section: the <strong>page header</strong>, the
+<strong>cells</strong>, the <strong>cell offset array</strong>, and <strong>free space</strong>.</p>
+<p>To understand how they relate to each other, it is important to understand
+how cells are laid out in a page. A table page is, to put it simply, a
+container of cells. The bytes in a page of size <span class="math notranslate nohighlight">\(PageSize\)</span> are numbered
+from 0 to (<span class="math notranslate nohighlight">\(PageSize-1\)</span>). Byte 0 is the <em>top</em> of the
+page, and byte (<span class="math notranslate nohighlight">\(PageSize-1\)</span>) is the <em>bottom</em> of the
+page. Cells are stored in a page from the bottom up. For example, if a
+cell of size <span class="math notranslate nohighlight">\(c_1\)</span> is added to an empty page, that cell would
+occupy bytes (<span class="math notranslate nohighlight">\(PageSize-c_1\)</span>) through
+(<span class="math notranslate nohighlight">\(PageSize-1\)</span>). If another cell of size <span class="math notranslate nohighlight">\(c_2\)</span> is
+added, that cell would occupy bytes
+(<span class="math notranslate nohighlight">\(PageSize-c_1-c_2\)</span>) through
+(<span class="math notranslate nohighlight">\(PageSize-c_1-1\)</span>). New cells are always added at the
+top of the cell area, cells must always be contiguous and there can be
+no free space between them. Thus, removing a cell or modifying its
+contents requires instantly defragmenting the cells.</p>
+<p>The cell offset array is used to keep track of where each cell is
+located. The cell offset array is located at the top of the page (after
+the page header) and grows from the top down. The <span class="math notranslate nohighlight">\(i\)</span><sup>th</sup>
+entry of the array contains the byte offset of the <span class="math notranslate nohighlight">\(i\)</span><sup>th</sup>
+cell <em>by increasing key order</em>. In other words, the cell offset is used
+not only to determine the location of each cell, but also their correct
+order.</p>
+<p>The following figure shows an example of how the
+insertion of a new cell affects the cell offset array. Notice how the
+new cell is stored at the top of the cell area, regardless of its key
+value. On the other hand, the entry in the cell offset array for the new
+cell is inserted in order.</p>
+<figure class="align-default">
+<img alt="Example of a cell insertion." src="../_images/cellsexample.png" />
+</figure>
+<p>The exact layout of the page is the following:</p>
+<figure class="align-default">
+<img alt="Page layout" src="../_images/page.png" />
+</figure>
+<ul class="simple">
+<li><p>The <strong>page header</strong> is located at the top of the page, and contains
+metadata about the page. The exact contents of the page header are
+explained later.</p></li>
+<li><p>The <strong>cell offset array</strong> is located immediately after the header.
+Each entry is stored as a <code class="docutils literal notranslate"><span class="pre">uint16</span></code>. Thus, the length of the cell offset array
+depends on the number of cells in the page.</p></li>
+<li><p>The <strong>cells</strong> are located at the end of the page.</p></li>
+<li><p>The space between the cell offset array and the cells is <strong>free space</strong>
+for the cell offset array to grow (down) and the cells to
+grow (up).</p></li>
+</ul>
+<p>The layout and contents of the page header are summarized in
+the following figure and table:</p>
+<figure class="align-default">
+<img alt="Page header" src="../_images/pageheader.png" />
+</figure>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Bytes</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p><span class="math notranslate nohighlight">\(PageType\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint8</span></code></p></td>
+<td><p>The type of page. Valid values are <code class="docutils literal notranslate"><span class="pre">0x05</span></code> (internal table page), <code class="docutils literal notranslate"><span class="pre">0x0D</span></code> (leaf table page), <code class="docutils literal notranslate"><span class="pre">0x02</span></code> (internal index page), and <code class="docutils literal notranslate"><span class="pre">0x0A</span></code> (leaf index page)</p></td>
+</tr>
+<tr class="row-odd"><td><p>1-2</p></td>
+<td><p><span class="math notranslate nohighlight">\(FreeOffset\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint16</span></code></p></td>
+<td><p>The byte offset at which the free space starts. Note that this must be updated every time the cell offset array grows.</p></td>
+</tr>
+<tr class="row-even"><td><p>3-4</p></td>
+<td><p><span class="math notranslate nohighlight">\(NumCells\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint16</span></code></p></td>
+<td><p>The number of cells stored in this page.</p></td>
+</tr>
+<tr class="row-odd"><td><p>5-6</p></td>
+<td><p><span class="math notranslate nohighlight">\(CellsOffset\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint16</span></code></p></td>
+<td><p>The byte offset at which the cells start. If the page contains no cells, this field contains the value <span class="math notranslate nohighlight">\(PageSize\)</span>. This value must be updated every time a cell is added.</p></td>
+</tr>
+<tr class="row-even"><td><p>8-11</p></td>
+<td><p><span class="math notranslate nohighlight">\(RightPage\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a> for a description of this value.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="table-cells">
+<h2>Table cells<a class="headerlink" href="fileformat.html#table-cells" title="Link to this heading">¶</a></h2>
+<p>The layout and contents of internal table cells is specified in the
+following figure and table:</p>
+<figure class="align-default">
+<img alt="Internal cell (table)" src="../_images/table_internalcell.png" />
+</figure>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Bytes</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0-3</p></td>
+<td><p><span class="math notranslate nohighlight">\(ChildPage\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>4-7</p></td>
+<td><p><span class="math notranslate nohighlight">\(Key\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">varint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+</tbody>
+</table>
+<p>The layout and contents of leaf table cells is specified in the
+following figure and table:</p>
+<figure class="align-default">
+<img alt="Leaf cell (table)" src="../_images/table_leafcell.png" />
+</figure>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Bytes</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0-3</p></td>
+<td><p><span class="math notranslate nohighlight">\(DBRecordSize\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">varint32</span></code></p></td>
+<td><p>Length of DB–Record in bytes.</p></td>
+</tr>
+<tr class="row-odd"><td><p>4-7</p></td>
+<td><p><span class="math notranslate nohighlight">\(Key\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">varint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>8-…</p></td>
+<td><p><span class="math notranslate nohighlight">\(DBRecord\)</span></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-records"><span class="std std-ref">Database records</span></a></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="database-records">
+<span id="chidb-records"></span><h2>Database records<a class="headerlink" href="fileformat.html#database-records" title="Link to this heading">¶</a></h2>
+<p>A database record is used to store the contents of a single table tuple
+(or “row”). It can contain a variable number of values of NULL, integer,
+or text types. The record is divided into two parts: the record header
+and the record data. The record header specifies the types of the values
+contained in the record. However, the header does not include schema
+information. In other word, a record header may specify that the record
+contains an integer, followed by a string, followed by null value,
+followed by an integer, but does not store the names of the fields, as
+given when the table was created (this information is stored in the
+schema table, described in <a class="reference internal" href="fileformat.html#chidb-schema"><span class="std std-ref">The schema table</span></a>). However, values in a
+database record must be stored in the same order as specified in the
+<code class="docutils literal notranslate"><span class="pre">CREATE</span> <span class="pre">TABLE</span></code> statement used to create the table.</p>
+<p>The format of a database record is shown in the following figure.</p>
+<figure class="align-default">
+<img alt="Database record format" src="../_images/record.png" />
+</figure>
+<p>The
+header’s first byte is used to store the length in bytes of the header
+(including this first byte). This is followed by <span class="math notranslate nohighlight">\(n\)</span> <code class="docutils literal notranslate"><span class="pre">varint8</span></code> or
+<code class="docutils literal notranslate"><span class="pre">varint32</span></code> values, where <span class="math notranslate nohighlight">\(n\)</span> is the number of values stored in the record. The supported
+types are listed in the following table. A <code class="docutils literal notranslate"><span class="pre">varint8</span></code> is used to specify types
+<code class="docutils literal notranslate"><span class="pre">NULL</span></code>, <code class="docutils literal notranslate"><span class="pre">BYTE</span></code>, <code class="docutils literal notranslate"><span class="pre">SMALLINT</span></code>, and <code class="docutils literal notranslate"><span class="pre">INTEGER</span></code>, while a <code class="docutils literal notranslate"><span class="pre">varint32</span></code> is used to
+specify a <code class="docutils literal notranslate"><span class="pre">TEXT</span></code> type.</p>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Header Value</strong></p></th>
+<th class="head"><p><strong>SQL Type</strong></p></th>
+<th class="head"><p><strong>Internal type used in record data</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NULL</span></code></p></td>
+<td><p>N/A</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BYTE</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int8</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SMALLINT</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int16</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INTEGER</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">int32</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(2\cdot\texttt{n}+13\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TEXT</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">raw-string(n)</span></code></p></td>
+</tr>
+</tbody>
+</table>
+<p>The record data contains the actual values, in the same order as
+specified in the header. Note that a value of type <code class="docutils literal notranslate"><span class="pre">NULL</span></code> is not
+actually stored in the record data (it just has to be specified in the
+header). Additionally, the value that corresponds to the table’s primary
+key is always stored as a <code class="docutils literal notranslate"><span class="pre">NULL</span></code> value (since it is already stored as
+the key of the B-Tree cell where the record is stored, repeating it in
+the record would be redundant). The following figure shows an
+example of how a record would be encoded internally, assuming that the table
+was created with  <code class="docutils literal notranslate"><span class="pre">CREATE</span> <span class="pre">TABLE</span> <span class="pre">Courses(Id</span> <span class="pre">INTEGER</span> <span class="pre">PRIMARY</span> <span class="pre">KEY,</span> <span class="pre">Name</span> <span class="pre">TEXT,</span> <span class="pre">Instructor</span> <span class="pre">INTEGER,</span> <span class="pre">Dept</span> <span class="pre">INTEGER)</span></code></p>
+<figure class="align-default">
+<img alt="Database record example, for a table created with ``CREATE TABLE Courses(Id INTEGER PRIMARY KEY, Name TEXT, Instructor INTEGER, Dept INTEGER)``" src="../_images/recordexample.png" />
+</figure>
+</section>
+<section id="indexes">
+<h2>Indexes<a class="headerlink" href="fileformat.html#indexes" title="Link to this heading">¶</a></h2>
+<p>An index B-Tree is very similar to a table B-Tree, so most of what we have
+explained regading table B-Trees is applicable to indexes. The main
+differences are the following:</p>
+<ul class="simple">
+<li><p>The <span class="math notranslate nohighlight">\(PageType\)</span> field of the page header must be set to the appropriate
+value (<code class="docutils literal notranslate"><span class="pre">0x02</span></code> for internal pages and <code class="docutils literal notranslate"><span class="pre">0x0A</span></code> for leaf pages)</p></li>
+<li><p>While a table is stored as a B<sup>+</sup>-Tree (records are only
+stored in the leaf nodes), an index is stored as a B-Tree (records
+are stored at all levels). However, an index does not store database
+records but, rather, <span class="math notranslate nohighlight">\(\langle KeyIdx, KeyPk \rangle\)</span> pairs, as
+defined in <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a>.</p></li>
+</ul>
+<p>The layout and contents of internal index cells is specified in the
+following figure and table:</p>
+<figure class="align-default">
+<img alt="Internal cell (index)" src="../_images/index_internalcell.png" />
+</figure>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Bytes</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0-3</p></td>
+<td><p><span class="math notranslate nohighlight">\(ChildPage\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>8-11</p></td>
+<td><p><span class="math notranslate nohighlight">\(KeyIdx\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+<tr class="row-even"><td><p>12-15</p></td>
+<td><p><span class="math notranslate nohighlight">\(KeyPk\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+</tbody>
+</table>
+<p>The layout and contents of leaf index cells is specified in the
+following figure and table:</p>
+<figure class="align-default">
+<img alt="Leaf cell (index)" src="../_images/index_leafcell.png" />
+</figure>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Bytes</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>4-7</p></td>
+<td><p><span class="math notranslate nohighlight">\(KeyIdx\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+<tr class="row-odd"><td><p>8-11</p></td>
+<td><p><span class="math notranslate nohighlight">\(KeyPk\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">uint32</span></code></p></td>
+<td><p>See <a class="reference internal" href="fileformat.html#chidb-physorg"><span class="std std-ref">Physical organization</span></a></p></td>
+</tr>
+</tbody>
+</table>
+<p>Notice how the internal and leaf cells only differ in the <span class="math notranslate nohighlight">\(ChildPage\)</span> field.</p>
+</section>
+<section id="the-schema-table">
+<span id="chidb-schema"></span><h2>The schema table<a class="headerlink" href="fileformat.html#the-schema-table" title="Link to this heading">¶</a></h2>
+<p>Up to this point, this document has covered how to store one or more
+tables and indexes in a chidb file. However, there is no way of knowing
+how many tables/indexes are stored in the file, what their schema is,
+and how the indexes relate to the tables. This information is stored in
+a special <em>schema table</em>. More specifically, a chidb file will always
+contain at least one table B-Tree, rooted in page 1, which will be used
+to store information on the database schema. The schema table contains
+one record for each table and index in the database.
+The following table lists the values that must be stored in each
+record.</p>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TEXT</span></code></p></td>
+<td><p>Schema item type</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">table</span></code> or <code class="docutils literal notranslate"><span class="pre">index</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">TEXT</span></code></p></td>
+<td><p>Schema item name</p></td>
+<td><p>Name of the table or index as specified in the <code class="docutils literal notranslate"><span class="pre">CREATE</span> <span class="pre">TABLE</span></code> or <code class="docutils literal notranslate"><span class="pre">CREATE</span> <span class="pre">INDEX</span></code> statement.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TEXT</span></code></p></td>
+<td><p>Associated table name</p></td>
+<td><p>For tables, this field is the same as the schema item name (the name of the table). For indexes, this value contains the name of the indexed table.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">INTEGER</span></code></p></td>
+<td><p>Root page</p></td>
+<td><p>Database page where the root node of the B-Tree is stored.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">TEXT</span></code></p></td>
+<td><p>SQL statement</p></td>
+<td><p>The SQL statement used to create the table or index.</p></td>
+</tr>
+</tbody>
+</table>
+<p>For example, a schema table could contain the following records:</p>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Type</strong></p></th>
+<th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Assoc. Table</strong></p></th>
+<th class="head"><p><strong>Root Page</strong></p></th>
+<th class="head"><p><strong>SQL</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>table</p></td>
+<td><p>Courses</p></td>
+<td><p>Courses</p></td>
+<td><p>2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CREATE</span> <span class="pre">TABLE</span> <span class="pre">Courses(Id</span> <span class="pre">INTEGER</span> <span class="pre">PRIMARY</span> <span class="pre">KEY,</span> <span class="pre">Name</span> <span class="pre">TEXT,</span> <span class="pre">Instructor</span> <span class="pre">INTEGER,</span> <span class="pre">Dept</span> <span class="pre">INTEGER)</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>table</p></td>
+<td><p>Instructors</p></td>
+<td><p>Instructors</p></td>
+<td><p>3</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CREATE</span> <span class="pre">TABLE</span> <span class="pre">Instructors(Id</span> <span class="pre">INTEGER</span> <span class="pre">PRIMARY</span> <span class="pre">KEY,</span> <span class="pre">Name</span> <span class="pre">TEXT)</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>index</p></td>
+<td><p>idxInstr</p></td>
+<td><p>Courses</p></td>
+<td><p>6</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">CREATE</span> <span class="pre">INDEX</span> <span class="pre">idxInst</span> <span class="pre">ON</span> <span class="pre">Courses(Instructor)</span></code></p></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="previous">
+    <a href="intro.html" title="Previous Chapter: Introduction"><span class="glyphicon glyphicon-chevron-left visible-sm"></span><span class="hidden-sm hidden-tablet">&laquo; Introduction</span>
+    </a>
+    </li>
+    <li class="next">
+    <a href="architecture.html" title="Next Chapter: The chidb Architecture"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">The chidb Architecture &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="fileformat.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,419 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>Testing your Implementation &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="The chidb Shell" href="shell.html" />
+    <link rel="prev" title="Assignment IV: Query Optimization" href="assignment_opt.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+          <li><a href="index.html">chidb</a></li>
+            <li class="active">Testing your Implementation</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="testing-your-implementation">
+<span id="chidb-testing"></span><h1>Testing your Implementation<a class="headerlink" href="testing.html#testing-your-implementation" title="Link to this heading">¶</a></h1>
+<p>We provide a number of automated tests and tools that you can use to
+test your implementation.</p>
+<section id="automated-tests">
+<h2>Automated tests<a class="headerlink" href="testing.html#automated-tests" title="Link to this heading">¶</a></h2>
+<p>You can run the chidb automated tests by running this:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>make check
+</pre></div>
+</div>
+</section>
+<section id="running-tests-selectively">
+<h2>Running tests selectively<a class="headerlink" href="testing.html#running-tests-selectively" title="Link to this heading">¶</a></h2>
+<p>Running through the entire test suite can be cumbersome if you’re trying to debug only
+a specific issue. You can run individual groups
+of tests like this:</p>
+<ul>
+<li><p>Assignment 1:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>CK_RUN_CASE=&quot;Step 1a: Opening an existing chidb file&quot; make check
+CK_RUN_CASE=&quot;Step 1b: Opening a new chidb file&quot; make check
+CK_RUN_CASE=&quot;Step 2: Loading a B-Tree node from the file&quot; make check
+CK_RUN_CASE=&quot;Step 3: Creating and writing a B-Tree node to disk&quot; make check
+CK_RUN_CASE=&quot;Step 4: Manipulating B-Tree cells&quot; make check
+CK_RUN_CASE=&quot;Step 5: Finding a value in a B-Tree&quot; make check
+CK_RUN_CASE=&quot;Step 6: Insertion into a leaf without splitting&quot; make check
+CK_RUN_CASE=&quot;Step 7: Insertion with splitting&quot; make check
+CK_RUN_CASE=&quot;Step 8: Supporting index B-Trees&quot; make check
+</pre></div>
+</div>
+</li>
+<li><p>Assignment 2:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>CK_RUN_SUITE=&quot;dbm-register&quot; make check
+CK_RUN_SUITE=&quot;dbm-flow&quot; make check
+CK_RUN_SUITE=&quot;dbm-cursor&quot; make check
+CK_RUN_SUITE=&quot;dbm-record&quot; make check
+CK_RUN_SUITE=&quot;dbm-sql-select&quot; make check
+CK_RUN_SUITE=&quot;dbm-sql-insert&quot; make check
+CK_RUN_SUITE=&quot;dbm-sql-create&quot; make check
+CK_RUN_SUITE=&quot;dbm-index&quot; make check
+</pre></div>
+</div>
+</li>
+</ul>
+</section>
+<section id="sample-string-b-tree-files">
+<h2>Sample “string” B-Tree files<a class="headerlink" href="testing.html#sample-string-b-tree-files" title="Link to this heading">¶</a></h2>
+<p>We provide a number of files that can be used to debug your B-Tree code. The “string” B-Tree files are chidb files with a single B-Tree, always rooted in page 1, where the contents of each leaf cell is just a nul-terminated string, instead of a database record. Everything else follows the chidb file format specification (file header, page headers, etc.). Although they are not strictly well-formed chidb files, they are easier to read with a binary editor. Note that, regardless of the string length, each string occupies 128 bytes in the cell.</p>
+<section id="tests-files-databases-strings-1page-sdb">
+<h3><code class="docutils literal notranslate"><span class="pre">tests/files/databases/strings-1page.sdb</span></code><a class="headerlink" href="testing.html#tests-files-databases-strings-1page-sdb" title="Link to this heading">¶</a></h3>
+<p>This file has a single page which contains a single B-Tree.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Leaf node (page 1)
+    1 -&gt;       foo1
+    2 -&gt;       foo2
+   10 -&gt;      foo10
+   35 -&gt;      foo35
+   37 -&gt;      foo37
+   42 -&gt;      foo42
+</pre></div>
+</div>
+</section>
+<section id="tests-files-databases-strings-1btree-sdb">
+<h3><code class="docutils literal notranslate"><span class="pre">tests/files/databases/strings-1btree.sdb</span></code><a class="headerlink" href="testing.html#tests-files-databases-strings-1btree-sdb" title="Link to this heading">¶</a></h3>
+<p>This file contains a single B-Tree with height 2. The root node is located in page 1,
+and its child nodes are located in pages 2, 3, 4, and 5.</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Internal node (page 1)
+Printing Keys &lt;= 7
+Leaf node (page 4)
+    1 -&gt;       foo1
+    2 -&gt;       foo2
+    3 -&gt;       foo3
+    7 -&gt;       foo7
+Printing Keys &lt;= 35
+Leaf node (page 3)
+   10 -&gt;      foo10
+   15 -&gt;      foo15
+   20 -&gt;      foo20
+   35 -&gt;      foo35
+Printing Keys &lt;= 1000
+Leaf node (page 5)
+   37 -&gt;      foo37
+   42 -&gt;      foo42
+  127 -&gt;     foo127
+ 1000 -&gt;    foo1000
+Printing Keys &gt; 1000
+Leaf node (page 2)
+ 2000 -&gt;    foo2000
+ 3000 -&gt;    foo3000
+ 4000 -&gt;    foo4000
+ 5000 -&gt;    foo5000
+</pre></div>
+</div>
+</section>
+</section>
+<section id="sample-chidb-files">
+<h2>Sample chidb files<a class="headerlink" href="testing.html#sample-chidb-files" title="Link to this heading">¶</a></h2>
+<p>We also provide several well-formed chidb files, which can also be used to test your B-Tree code, but are better suited for Assignments 2 and 3. Unlike the “string” databases, each leaf cell contains a database record, and the database includes a schema table in page 1. All these files can also be opened in SQLite.</p>
+<section id="tests-files-databases-1table-1page-cdb">
+<h3><code class="docutils literal notranslate"><span class="pre">tests/files/databases/1table-1page.cdb</span></code><a class="headerlink" href="testing.html#tests-files-databases-1table-1page-cdb" title="Link to this heading">¶</a></h3>
+<p>This file contains a single table occupying a single page (page 2).</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Schema table:
+Leaf node (page 1)
+&lt;     1 &gt;| table | courses | courses | 2 | CREATE TABLE courses(code INTEGER PRIMARY KEY, name TEXT, prof BYTE, dept INTEGER) |
+
+Table:
+Leaf node (page 2)
+&lt; 21000 &gt;|| Programming Languages | 75 | 89 |
+&lt; 23500 &gt;|| Databases || 42 |
+&lt; 27500 &gt;|| Operating Systems || 89 |
+</pre></div>
+</div>
+</section>
+<section id="tests-files-databases-1table-1index-1pageeach-cdb">
+<h3><code class="docutils literal notranslate"><span class="pre">tests/files/databases/1table-1index-1pageeach.cdb</span></code><a class="headerlink" href="testing.html#tests-files-databases-1table-1index-1pageeach-cdb" title="Link to this heading">¶</a></h3>
+<p>This file contains a single table and an index on that table. The table occupies a single page (page 2) and the index occupies a single page (page 3).</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Schema table:
+Leaf node (page 1)
+&lt;     1 &gt;| table | numbers | numbers | 2 | CREATE TABLE numbers(code INTEGER PRIMARY KEY, textcode TEXT, altcode INTEGER) |
+&lt;     2 &gt;| index | idxNumbers | numbers | 3 | CREATE INDEX idxNumbers ON numbers(altcode) |
+
+Table:
+Leaf node (page 2)
+&lt;   100 &gt;|| foo100 | 20100 |
+&lt;   200 &gt;|| foo200 | 20200 |
+&lt;   300 &gt;|| foo300 | 20300 |
+
+Index:
+Leaf node (page 3)
+     20100 -&gt;        100
+     20200 -&gt;        200
+     20300 -&gt;        300
+</pre></div>
+</div>
+</section>
+<section id="tests-files-databases-1table-largebtree-cdb">
+<h3><code class="docutils literal notranslate"><span class="pre">tests/files/databases/1table-largebtree.cdb</span></code><a class="headerlink" href="testing.html#tests-files-databases-1table-largebtree-cdb" title="Link to this heading">¶</a></h3>
+<p>This is a file with the same table and index as the previous file, but where the table B-Tree has height 3. The total size of the file is 202 pages.</p>
+</section>
+</section>
+<section id="the-dbm-file-format">
+<span id="chidb-dbmf"></span><h2>The DBM File Format<a class="headerlink" href="testing.html#the-dbm-file-format" title="Link to this heading">¶</a></h2>
+<p>To test your implementation of the Database Machine (DBM), chidb provides a format for specifying DBM programs
+that can be easily loaded and run before you have a code generator that can translate SQL to DBM operations.
+Many sample programs are included in <code class="docutils literal notranslate"><span class="pre">tests/files/dbm-programs</span></code>, and they are run automatically
+as part of the tests when running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">check</span></code>.</p>
+<p>The DBM File (DBMF) format is divided into four sections, separated by <code class="docutils literal notranslate"><span class="pre">%%</span></code>:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Database file
+
+%%
+
+DBM instructions or SQL statement
+
+%%
+
+Query results
+
+%%
+
+Expected register values
+</pre></div>
+</div>
+<p>The <em>database file</em> specification can be one of the following:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">NO</span> <span class="pre">DBFILE</span></code>: Indicates that no database file is necessary to run this DBM program.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">CREATE</span></code> <em>file</em>: Creates a new database called <em>file</em> in <code class="docutils literal notranslate"><span class="pre">tests/files/generated/</span></code>, and
+run the DBM program on it.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">USE</span></code> <em>file</em>: Take database <em>file</em> from <code class="docutils literal notranslate"><span class="pre">tests/files/databases/</span></code>, create a copy in
+<code class="docutils literal notranslate"><span class="pre">tests/files/generated/</span></code>, and run the DBM program on it.</p></li>
+</ul>
+<p>The next section can either contain DBM instructions or a SQL query. If it contains
+DBM instructions, this will be a list of DBM instructions in the following format:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>opcode P1 P2 P3 P4
+</pre></div>
+</div>
+<p>Each value can be separated by any amount of space characters.
+When an operation does not expect a value for one of its parameters, an underscore character is
+used. For example:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>Integer 42  5   _   _
+</pre></div>
+</div>
+<p>When present, P4 must always be written with double quotes. For example:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>String 13  5   _   &quot;Hello, world!&quot;
+</pre></div>
+</div>
+<p>If it contains a SQL statement, it will be a single SQL statement in a single line. This
+statement will be compiled into a DBM program when the DBMF file is loaded, which requires
+a working code generator.</p>
+<p>The <em>query results</em> contain one line per row returned by the program. Each column can be
+separated by any amount of space characters. Strings must be written in double quotes,
+and a null value must be written as <code class="docutils literal notranslate"><span class="pre">NULL</span></code>. For example:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>21000  &quot;Programming Languages&quot;   75    89
+23500  &quot;Databases&quot;               NULL  42
+27500  &quot;Operating Systems&quot;       NULL  89
+</pre></div>
+</div>
+<p>If the <em>query results</em> section is empty, no checks will be performed on the rows returned
+by the program.</p>
+<p>The <em>expected register values</em> contains specifications of registers in the following format:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>R_N type [value]
+</pre></div>
+</div>
+<p>Where <code class="docutils literal notranslate"><span class="pre">N</span></code> is the register number, <code class="docutils literal notranslate"><span class="pre">type</span></code> is <code class="docutils literal notranslate"><span class="pre">unspecified</span></code>, <code class="docutils literal notranslate"><span class="pre">null</span></code>, <code class="docutils literal notranslate"><span class="pre">integer</span></code>, <code class="docutils literal notranslate"><span class="pre">string</span></code>, or <code class="docutils literal notranslate"><span class="pre">binary</span></code>.
+Optionally, a value can be provided (note: values cannot be provided for binary registers). If a value
+is not provided, the tests will only check whether the type of the register is correct.</p>
+<p>For example:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>R_0 integer 2
+R_1 integer 1
+R_2 null
+R_3 string &quot;Hard Drive&quot;
+R_4 integer 240
+R_5 binary
+</pre></div>
+</div>
+<p>Note that not all registers have to be specified. In other words, if the program uses a register, and it is not
+included in the <em>expected register values</em>, that will not result in an error.</p>
+<p>Note that DBMF files with a SQL statement instead of a DBM program will usually omit the registers
+section of the file (since the registers will depend on the generated code).</p>
+<p>This is an example of a complete DBMF file, corresponding to running <code class="docutils literal notranslate"><span class="pre">SELECT</span> <span class="pre">*</span> <span class="pre">FROM</span> <span class="pre">courses</span></code> on file
+<code class="docutils literal notranslate"><span class="pre">1table-1page.cdb</span></code> described above:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>USE 1table-1page.cdb
+
+%%
+
+Integer      2  0  _  _
+OpenRead     0  0  4  _
+Rewind       0  9  _  _
+Key          0  1  _  _
+Column       0  1  2  _
+Column       0  2  3  _
+Column       0  3  4  _
+ResultRow    1  4  _  _
+Next         0  3  _  _
+Close        0  _  _  _
+Halt         _  _  _  _
+
+%%
+
+21000  &quot;Programming Languages&quot;   75    89
+23500  &quot;Databases&quot;               NULL  42
+27500  &quot;Operating Systems&quot;       NULL  89
+
+%%
+
+R_0 integer 2
+R_1 integer
+</pre></div>
+</div>
+<p>And this is an example of an equivalent DBMF file where a SQL statement is specified instead of a DBM
+program:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>USE 1table-1page.cdb
+
+%%
+
+SELECT * FROM courses;
+
+%%
+
+21000  &quot;Programming Languages&quot;   75    89
+23500  &quot;Databases&quot;               NULL  42
+27500  &quot;Operating Systems&quot;       NULL  89
+</pre></div>
+</div>
+</section>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="previous">
+    <a href="assignment_opt.html" title="Previous Chapter: Assignment IV: Query Optimization"><span class="glyphicon glyphicon-chevron-left visible-sm"></span><span class="hidden-sm hidden-tablet">&laquo; Assignment IV: Query Optimization</span>
+    </a>
+    </li>
+    <li class="next">
+    <a href="shell.html" title="Next Chapter: The chidb Shell"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">The chidb Shell &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="testing.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

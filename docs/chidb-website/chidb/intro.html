@@ -1,0 +1,201 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>Introduction &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="The chidb File Format" href="fileformat.html" />
+    <link rel="prev" title="chidb" href="index.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+          <li><a href="index.html">chidb</a></li>
+            <li class="active">Introduction</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="introduction">
+<h1>Introduction<a class="headerlink" href="intro.html#introduction" title="Link to this heading">¶</a></h1>
+<p>In this project you will implement a relational database management system.
+More specifically, you will implement an RDBMS where the entire database
+is stored in a single file, similar to the popular <a class="reference external" href="https://sqlite.org/">SQLite</a>
+system. The goal of this project is for you to understand how databases
+work internally, and to understand what happens “under the hood” when
+you run a SQL query.</p>
+<p>The project is completed in three stages:</p>
+<ol class="arabic">
+<li><p>You will implement a series of functions to create and manipulate file-based
+B-Trees. The chidb file format is based on the SQLite format and, in fact,
+chidb files can be opened and manipulated using SQLite. This will show you
+how files are organized in a real RDBMS.</p></li>
+<li><p>You will implement a <em>database machine</em> (DBM). In most RDBMS’s, SQL queries are
+compiled into instructions for a virtual machine (as opposed to being compiled
+down to x86 instructions). These virtual machines include instructions to
+seek keys in an index, access specific columns in a database record, etc. We
+provide you with the basic infrastructure of the DBM, but you must implement
+all the instructions in the DBM.</p>
+<p>Once you have implemented the database machine, you will implement a
+<em>SQL compiler</em>. We provide you with a parser and lexer that will parse SQL
+queries and will provide an internal representation that is similar to
+relational algebra. You will need to take those representations, and translate
+them into DBM programs.</p>
+</li>
+<li><p>You will implement a <em>query optimizer</em>. You will improve your SQL compiler
+to apply a number of query optimization strategies.</p></li>
+</ol>
+<p>The chidb documentation is divided into the following sections:</p>
+<ul class="simple">
+<li><p><a class="reference internal" href="fileformat.html#chidb-fileformat"><span class="std std-ref">The chidb File Format</span></a> and <a class="reference internal" href="architecture.html#chidb-architecture"><span class="std std-ref">The chidb Architecture</span></a>: These sections specify
+the chidb file format and the internal architecture of the chidb RDBMS. Don’t worry
+if you don’t understand everything in these sections at first; they will become
+clearer in the programming assignments, which will require you to implement
+specific portions of these specifications.</p></li>
+<li><p><a class="reference internal" href="installing.html#chidb-installing"><span class="std std-ref">Installing, Building, and Running chidb</span></a>: Instructions on how to install, build, and run
+chidb.</p></li>
+<li><p><a class="reference internal" href="assignment_btree.html#chidb-assignment-btrees"><span class="std std-ref">Assignment I: B-Trees</span></a>: The B-Tree assignment (NOTE: additional assignments
+will be added soon). Please note that your instructor may provide
+additional instructions on how to do these assignments.</p></li>
+<li><p><a class="reference internal" href="testing.html#chidb-testing"><span class="std std-ref">Testing your Implementation</span></a>: Suggestions and strategies for testing your
+implementation.</p></li>
+</ul>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="previous">
+    <a href="index.html" title="Previous Chapter: chidb"><span class="glyphicon glyphicon-chevron-left visible-sm"></span><span class="hidden-sm hidden-tablet">&laquo; chidb</span>
+    </a>
+    </li>
+    <li class="next">
+    <a href="fileformat.html" title="Next Chapter: The chidb File Format"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">The chidb File Format &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="intro.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

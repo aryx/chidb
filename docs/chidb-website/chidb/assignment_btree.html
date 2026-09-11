@@ -1,0 +1,282 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>Assignment I: B-Trees &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="Assignment II: Database Machine" href="assignment_dbm.html" />
+    <link rel="prev" title="Installing, Building, and Running chidb" href="installing.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+          <li><a href="index.html">chidb</a></li>
+            <li class="active">Assignment I: B-Trees</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="assignment-i-b-trees">
+<span id="chidb-assignment-btrees"></span><h1>Assignment I: B-Trees<a class="headerlink" href="assignment_btree.html#assignment-i-b-trees" title="Link to this heading">¶</a></h1>
+<p>In this first assignment, you will be implementing a series of functions
+for manipulating B-Trees in chidb. This assignment is divided into the following
+steps:</p>
+<ol class="arabic simple">
+<li><p>Opening a chidb file</p></li>
+<li><p>Loading a B-Tree node from the file</p></li>
+<li><p>Creating and writing a B-Tree node to disk</p></li>
+<li><p>Manipulating B-Tree cells</p></li>
+<li><p>Finding a value in a B-Tree</p></li>
+<li><p>Insertion into a leaf without splitting</p></li>
+<li><p>Insertion with splitting</p></li>
+<li><p>Supporting index B-Trees</p></li>
+</ol>
+<p>All of these steps can be developed independently (the only exception is
+step 8, which is a cross-cutting feature). Nonetheless, testing a step
+will usually require that some of the previous steps be implemented
+(e.g., you can’t find a value in a B-Tree if you can’t open the file
+itself).</p>
+<section id="before-you-get-started">
+<h2>Before you get started<a class="headerlink" href="assignment_btree.html#before-you-get-started" title="Link to this heading">¶</a></h2>
+<p>Before you start working on this assignment, make sure read
+<a class="reference internal" href="fileformat.html#chidb-fileformat"><span class="std std-ref">The chidb File Format</span></a>. You are not expected to understand the entire document at
+first, but you should at least get a general feel for how a chidb file
+is organized.</p>
+<p>Most of your work will be done on the files <code class="docutils literal notranslate"><span class="pre">src/libchidb/btree.[hc]</span></code>.
+The header file contains declarations of functions you will have to
+implement, and which are referred to in the rest of the document. The
+specification of what the functions must do is included in the source as
+comments.</p>
+</section>
+<section id="step-1-opening-a-chidb-file">
+<h2>Step 1: Opening a chidb file<a class="headerlink" href="assignment_btree.html#step-1-opening-a-chidb-file" title="Link to this heading">¶</a></h2>
+<p>Implement the following functions:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_open</span><span class="p">(</span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="n">filename</span><span class="p">,</span><span class="w"> </span><span class="n">chidb</span><span class="w"> </span><span class="o">*</span><span class="n">db</span><span class="p">,</span><span class="w"> </span><span class="n">BTree</span><span class="w"> </span><span class="o">**</span><span class="n">bt</span><span class="p">)</span>
+<span class="kt">int</span><span class="w"> </span><span class="n">chidb_Btree_close</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Take into account that the <code class="docutils literal notranslate"><span class="pre">chidb_Btree_open</span></code> function can open an
+existing file, but can also create an empty database file if given the
+name of a file that does not exist. The latter functionality will not be
+possible until Step 3 is completed.</p>
+</section>
+<section id="step-2-loading-a-b-tree-node-from-the-file">
+<h2>Step 2: Loading a B-Tree node from the file<a class="headerlink" href="assignment_btree.html#step-2-loading-a-b-tree-node-from-the-file" title="Link to this heading">¶</a></h2>
+<p>Implement the following functions:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_getNodeByPage</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">npage</span><span class="p">,</span><span class="w"> </span><span class="n">BTreeNode</span><span class="w"> </span><span class="o">**</span><span class="n">node</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_freeMemNode</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">BTreeNode</span><span class="w"> </span><span class="o">*</span><span class="n">btn</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="step-3-creating-and-writing-a-b-tree-node-to-disk">
+<h2>Step 3: Creating and writing a B-Tree node to disk<a class="headerlink" href="assignment_btree.html#step-3-creating-and-writing-a-b-tree-node-to-disk" title="Link to this heading">¶</a></h2>
+<p>Implement the following function:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_newNode</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="o">*</span><span class="n">npage</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">type</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_initEmptyNode</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">npage</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="n">type</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_writeNode</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">BTreeNode</span><span class="w"> </span><span class="o">*</span><span class="n">node</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="step-4-manipulating-b-tree-cells">
+<h2>Step 4: Manipulating B-Tree cells<a class="headerlink" href="assignment_btree.html#step-4-manipulating-b-tree-cells" title="Link to this heading">¶</a></h2>
+<p>Implement the following functions:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_getCell</span><span class="p">(</span><span class="n">BTreeNode</span><span class="w"> </span><span class="o">*</span><span class="n">btn</span><span class="p">,</span><span class="w"> </span><span class="n">ncell_t</span><span class="w"> </span><span class="n">ncell</span><span class="p">,</span><span class="w"> </span><span class="n">BTreeCell</span><span class="w"> </span><span class="o">*</span><span class="n">cell</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_insertCell</span><span class="p">(</span><span class="n">BTreeNode</span><span class="w"> </span><span class="o">*</span><span class="n">btn</span><span class="p">,</span><span class="w"> </span><span class="n">ncell_t</span><span class="w"> </span><span class="n">ncell</span><span class="p">,</span><span class="w"> </span><span class="n">BTreeCell</span><span class="w"> </span><span class="o">*</span><span class="n">cell</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Take into account that, once you’ve implemented <code class="docutils literal notranslate"><span class="pre">chidb_Btree_getCell</span></code>
+(which is the simpler of the two), you will be able to implement
+<code class="docutils literal notranslate"><span class="pre">chidb_Btree_find</span></code> or use the provided <code class="docutils literal notranslate"><span class="pre">chidb_Btree_print</span></code>. At that
+point, you will be able to open example database files (available at the
+chidb website) and verify that you can correctly print out their
+contents or search for specific values.</p>
+</section>
+<section id="step-5-finding-a-value-in-a-b-tree">
+<h2>Step 5: Finding a value in a B-Tree<a class="headerlink" href="assignment_btree.html#step-5-finding-a-value-in-a-b-tree" title="Link to this heading">¶</a></h2>
+<p>Implement the following function:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_find</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">nroot</span><span class="p">,</span><span class="w"> </span><span class="kt">key_t</span><span class="w"> </span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">**</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="kt">uint16_t</span><span class="w"> </span><span class="o">*</span><span class="n">size</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+<section id="step-6-insertion-into-a-leaf-without-splitting">
+<h2>Step 6: Insertion into a leaf without splitting<a class="headerlink" href="assignment_btree.html#step-6-insertion-into-a-leaf-without-splitting" title="Link to this heading">¶</a></h2>
+<p>Implement the following functions:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_insertInTable</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">nroot</span><span class="p">,</span>
+<span class="w">                              </span><span class="kt">key_t</span><span class="w"> </span><span class="n">key</span><span class="p">,</span><span class="w"> </span><span class="kt">uint8_t</span><span class="w"> </span><span class="o">*</span><span class="n">data</span><span class="p">,</span><span class="w"> </span><span class="kt">uint16_t</span><span class="w"> </span><span class="n">size</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_insert</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">nroot</span><span class="p">,</span><span class="w"> </span><span class="n">BTreeCell</span><span class="w"> </span><span class="o">*</span><span class="n">btc</span><span class="p">);</span>
+<span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_insertNonFull</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">npage</span><span class="p">,</span><span class="w"> </span><span class="n">BTreeCell</span><span class="w"> </span><span class="o">*</span><span class="n">btc</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Take into account that, at this point, <code class="docutils literal notranslate"><span class="pre">chidb_Btree_insert</span></code> will be
+little more than a call to <code class="docutils literal notranslate"><span class="pre">chidb_Btree_insertNonFull</span></code>. Also, even if
+at this point you are only inserting in leaf nodes, that doesn’t mean
+that your implementation shouldn’t work on a database file that does
+have internal nodes. So, <code class="docutils literal notranslate"><span class="pre">chidb_Btree_insertNonFull</span></code> should still
+traverse the tree in search of the leaf node to insert the cell in (but
+assuming that splitting will not be necessary)</p>
+<p>Since the chidb file format is a subset of the SQLite format, once this
+step is completed you will be able to create a chidb file and open it in
+SQLite, as long as you include a valid schema table in the file.</p>
+</section>
+<section id="step-7-insertion-with-splitting">
+<h2>Step 7: Insertion with splitting<a class="headerlink" href="assignment_btree.html#step-7-insertion-with-splitting" title="Link to this heading">¶</a></h2>
+<p>Implement the following function:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_split</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">npage_parent</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">npage_child</span><span class="p">,</span>
+<span class="w">                                 </span><span class="n">ncell_t</span><span class="w"> </span><span class="n">parent_cell</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="o">*</span><span class="n">npage_child2</span><span class="p">);</span>
+</pre></div>
+</div>
+<p>Note that you will also have to modify <code class="docutils literal notranslate"><span class="pre">chidb_Btree_insert</span></code> and
+<code class="docutils literal notranslate"><span class="pre">chidb_Btree_insertNonFull</span></code> to split nodes when necessary.</p>
+</section>
+<section id="step-8-supporting-index-b-trees">
+<h2>Step 8: Supporting index B-Trees<a class="headerlink" href="assignment_btree.html#step-8-supporting-index-b-trees" title="Link to this heading">¶</a></h2>
+<p>Supporting index B-Trees affects almost all of the previous functions.
+As such, this step can either be done from the very beginning (at the
+cost of complicating the implementation of the previous functions), or
+added at the end (simplifying the implementation of the previous
+functions, but adding more work at the end of this assignment).</p>
+<p>Besides modifying the previous functions, you will also have to
+implement the following function:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_Btree_insertInIndex</span><span class="p">(</span><span class="n">BTree</span><span class="w"> </span><span class="o">*</span><span class="n">bt</span><span class="p">,</span><span class="w"> </span><span class="n">npage_t</span><span class="w"> </span><span class="n">nroot</span><span class="p">,</span><span class="w"> </span><span class="kt">key_t</span><span class="w"> </span><span class="n">keyIdx</span><span class="p">,</span><span class="w"> </span><span class="kt">key_t</span><span class="w"> </span><span class="n">keyPk</span><span class="p">);</span>
+</pre></div>
+</div>
+</section>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="previous">
+    <a href="installing.html" title="Previous Chapter: Installing, Building, and Running chidb"><span class="glyphicon glyphicon-chevron-left visible-sm"></span><span class="hidden-sm hidden-tablet">&laquo; Installing, Building, and Running chidb</span>
+    </a>
+    </li>
+    <li class="next">
+    <a href="assignment_dbm.html" title="Next Chapter: Assignment II: Database Machine"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">Assignment II: Database Machine &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="assignment_btree.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

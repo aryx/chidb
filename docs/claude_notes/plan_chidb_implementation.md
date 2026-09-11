@@ -19,11 +19,13 @@ of 4 (optimizer: at minimum keep the correct no-op pass; add index usage if
 time allows) to get `SELECT`, `INSERT`, `CREATE TABLE`, and `CREATE INDEX`
 working end-to-end through the shell and `make check`.
 
-Spec sources (not in the repo, fetched from chi.cs.uchicago.edu/chidb —
-notes on relevant details saved in [notes_dbm_spec.txt](notes_dbm_spec.txt)
-and [notes_file_format.txt](notes_file_format.txt) since those pages
-aren't stored locally and WebFetch can't reach the site over HTTPS,
-only plain HTTP via curl/w3m):
+Spec sources, from chi.cs.uchicago.edu/chidb (not shipped upstream, but
+now mirrored locally under [docs/chidb-website/](../chidb-website/) --
+see its README; WebFetch can't reach the site over HTTPS, only plain
+HTTP via curl/w3m/wget). [notes_dbm_spec.txt](notes_dbm_spec.txt) and
+[notes_file_format.txt](notes_file_format.txt) are a condensed,
+implementation-focused summary of the two pages that mattered most,
+written before the mirror existed:
 - architecture.html — DBM instruction reference (P1-P4 semantics for all 36 opcodes)
 - fileformat.html — file/page/cell/record format, schema table layout
 - assignment_dbm.html — DBM assignment steps and file layout (dbm.c, dbm-ops.c, dbm-cursor.c)

@@ -1,0 +1,237 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>chidb &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="Introduction" href="intro.html" />
+    <link rel="prev" title="The UChicago χ-Projects" href="http://chi.cs.uchicago.edu/about.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html#">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+            <li class="active">chidb</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="chidb">
+<h1>chidb<a class="headerlink" href="index.html#chidb" title="Link to this heading">¶</a></h1>
+<p>chidb is a didactic relational database management system (RDBMS) designed for teaching how a RDBMS is built internally, from the data organization in files all the way up to the SQL parser and query optimizer. The design of chidb is based on <a class="reference external" href="https://sqlite.org/">SQLite</a>, with several simplifying assumptions that make it possible to develop a complete chidb implementation over the course of a quarter or semester. One of the key similarities is that chidb uses a single file to store all its information (database metadata, tables, and indexes). In fact, the chidb file format is a subset of SQLite, meaning that well-formed chidb files will also be well-formed SQLite files (the opposite, though, is not necessarily true).</p>
+<div class="toctree-wrapper compound">
+<ul>
+<li class="toctree-l1"><a class="reference internal" href="intro.html">Introduction</a></li>
+<li class="toctree-l1"><a class="reference internal" href="fileformat.html">The chidb File Format</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#file-format-overview">File format overview</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#datatypes">Datatypes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#file-header">File header</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#table-pages">Table pages</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#table-cells">Table cells</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#database-records">Database records</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#indexes">Indexes</a></li>
+<li class="toctree-l2"><a class="reference internal" href="fileformat.html#the-schema-table">The schema table</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="architecture.html">The chidb Architecture</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#chidb-api">chidb API</a></li>
+<li class="toctree-l2"><a class="reference internal" href="architecture.html#database-machine">Database Machine</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="installing.html">Installing, Building, and Running chidb</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="installing.html#software-requirements">Software Requirements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installing.html#building">Building</a></li>
+<li class="toctree-l2"><a class="reference internal" href="installing.html#running">Running</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="assignment_btree.html">Assignment I: B-Trees</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#before-you-get-started">Before you get started</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-1-opening-a-chidb-file">Step 1: Opening a chidb file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-2-loading-a-b-tree-node-from-the-file">Step 2: Loading a B-Tree node from the file</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-3-creating-and-writing-a-b-tree-node-to-disk">Step 3: Creating and writing a B-Tree node to disk</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-4-manipulating-b-tree-cells">Step 4: Manipulating B-Tree cells</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-5-finding-a-value-in-a-b-tree">Step 5: Finding a value in a B-Tree</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-6-insertion-into-a-leaf-without-splitting">Step 6: Insertion into a leaf without splitting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-7-insertion-with-splitting">Step 7: Insertion with splitting</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_btree.html#step-8-supporting-index-b-trees">Step 8: Supporting index B-Trees</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="assignment_dbm.html">Assignment II: Database Machine</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#dbm-code">DBM code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#testing-your-dbm">Testing your DBM</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#step-1-implement-the-register-manipulation-instructions">Step 1: Implement the Register Manipulation Instructions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#step-2-implement-the-control-flow-instructions">Step 2: Implement the Control Flow Instructions</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#step-3-implement-cursors-and-cursor-instructions-for-table-b-trees">Step 3: Implement Cursors and Cursor Instructions for Table B-Trees</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#step-4-select-queries">Step 4: SELECT queries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#step-5-insert-statements">Step 5: INSERT statements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#step-6-create-table-statements">Step 6: CREATE TABLE statements</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_dbm.html#step-7-index-operations">Step 7: Index operations</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="assignment_codegen.html">Assignment III: Code Generation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="assignment_codegen.html#code-generator-code">Code Generator code</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_codegen.html#testing-your-code-generator">Testing your Code Generator</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_codegen.html#step-1-schema-loading">Step 1: Schema Loading</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_codegen.html#step-2-simple-select-code-generation">Step 2: Simple SELECT Code Generation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_codegen.html#step-3-insert-code-generation">Step 3: INSERT Code Generation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_codegen.html#step-4-create-table-code-generation">Step 4: CREATE TABLE Code Generation</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_codegen.html#step-5-natural-join-code-generation">Step 5:  NATURAL JOIN Code Generation</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="assignment_opt.html">Assignment IV: Query Optimization</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="assignment_opt.html#pushing-sigmas">Pushing Sigmas</a></li>
+<li class="toctree-l2"><a class="reference internal" href="assignment_opt.html#supporting-indexes">Supporting Indexes</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="testing.html">Testing your Implementation</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#automated-tests">Automated tests</a></li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#running-tests-selectively">Running tests selectively</a></li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#sample-string-b-tree-files">Sample “string” B-Tree files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#sample-chidb-files">Sample chidb files</a></li>
+<li class="toctree-l2"><a class="reference internal" href="testing.html#the-dbm-file-format">The DBM File Format</a></li>
+</ul>
+</li>
+<li class="toctree-l1"><a class="reference internal" href="shell.html">The chidb Shell</a><ul>
+<li class="toctree-l2"><a class="reference internal" href="shell.html#running-sql-queries">Running SQL queries</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shell.html#running-dbm-programs">Running DBM programs</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shell.html#the-explain-command">The EXPLAIN command</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shell.html#other-commands">Other commands</a></li>
+<li class="toctree-l2"><a class="reference internal" href="shell.html#running-non-interactively">Running non-interactively</a></li>
+</ul>
+</li>
+</ul>
+</div>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="next">
+    <a href="intro.html" title="Next Chapter: Introduction"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">Introduction &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="index.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,302 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>The chidb Shell &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="chirc" href="http://chi.cs.uchicago.edu/chirc/index.html" />
+    <link rel="prev" title="Testing your Implementation" href="testing.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+          <li><a href="index.html">chidb</a></li>
+            <li class="active">The chidb Shell</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="the-chidb-shell">
+<span id="chidb-shell"></span><h1>The chidb Shell<a class="headerlink" href="shell.html#the-chidb-shell" title="Link to this heading">¶</a></h1>
+<p>Building your project with <code class="docutils literal notranslate"><span class="pre">make</span></code> will generate an executable called <code class="docutils literal notranslate"><span class="pre">chidb</span></code>.
+This is the chidb shell, which you will be able to use to run SQL queries on chidb
+files once you’ve completed Assignment 3. However, it also includes a number of features
+that can be useful in Assignment 2.</p>
+<p>To start the chidb shell, just run this:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>./chidb DBFILE
+</pre></div>
+</div>
+<p>Where <code class="docutils literal notranslate"><span class="pre">DBFILE</span></code> is the chidb file you want to operate on.</p>
+<p>You should see the following prompt:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chidb&gt;
+</pre></div>
+</div>
+<section id="running-sql-queries">
+<h2>Running SQL queries<a class="headerlink" href="shell.html#running-sql-queries" title="Link to this heading">¶</a></h2>
+<p>To run a SQL query, just type it into the shell. Don’t forget to include a <code class="docutils literal notranslate"><span class="pre">;</span></code> at the end of the statement:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chidb&gt; SELECT * from courses;
+21000|Programming Languages|75|89
+23500|Databases||42
+27500|Operating Systems||89
+</pre></div>
+</div>
+<p>Take into account that SQL queries won’t work until you’ve implemented the code generator in Assignment 3. Until
+then, we provide a barebones code generator that will always return five rows with three columns: an integer identifier,
+the SQL query, and the NULL value:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chidb&gt; SELECT * from courses;
+1|SELECT * from courses;|
+2|SELECT * from courses;|
+3|SELECT * from courses;|
+4|SELECT * from courses;|
+5|SELECT * from courses;|
+</pre></div>
+</div>
+</section>
+<section id="running-dbm-programs">
+<h2>Running DBM programs<a class="headerlink" href="shell.html#running-dbm-programs" title="Link to this heading">¶</a></h2>
+<p>You can run <a class="reference internal" href="testing.html#chidb-dbmf"><span class="std std-ref">DBMF files</span></a> from the shell using the <code class="docutils literal notranslate"><span class="pre">.dbmrun</span></code> command. However,
+the shell <em>only</em> uses the “DBM instructions” portion of the file. If the program is intended to
+be run on a specific chidb file, it must be opened in the shell. For example:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>$ ./chidb tests/files/databases/1table-1page.cdb
+chidb&gt; .dbmrun tests/files/dbm-programs/sql-select/select-002.dbmf
+RESULT ROWS
+-----------
+21000,&quot;Programming Languages&quot;,75,89
+23500,&quot;Databases&quot;,NULL,42
+27500,&quot;Operating Systems&quot;,NULL,89
+
+     opcode          P1     P2     P3     P4
+     --------------- ------ ------ ------ ------
+  0: Integer         2      0      0      NULL
+  1: OpenRead        0      0      4      NULL
+  2: Rewind          0      9      0      NULL
+  3: Key             0      1      0      NULL
+  4: Column          0      1      2      NULL
+  5: Column          0      2      3      NULL
+  6: Column          0      3      4      NULL
+  7: ResultRow       1      4      0      NULL
+  8: Next            0      3      0      NULL
+  9: Close           0      0      0      NULL
+ 10: Halt            0      0      0      NULL
+     --------------- ------ ------ ------ ------
+
+REGISTERS
+---------
+R_0 = 2
+R_1 = 27500
+R_2 = &quot;Operating Systems&quot;
+R_3 = NULL
+R_4 = 89
+</pre></div>
+</div>
+<p>The shell also does not validate whether the result rows and registers match the ones specified in
+the files. These checks are only performed when the DBMF file is run as part of the test suite
+when running <code class="docutils literal notranslate"><span class="pre">make</span> <span class="pre">check</span></code>.</p>
+</section>
+<section id="the-explain-command">
+<span id="chidb-shell-explain"></span><h2>The EXPLAIN command<a class="headerlink" href="shell.html#the-explain-command" title="Link to this heading">¶</a></h2>
+<p>Given a SQL statement, it can be useful to see the DBM program generated by the code generator.
+To show a SQL statement DBM program, instead of the result of running the SQL statement itself,
+simple type <code class="docutils literal notranslate"><span class="pre">EXPLAIN</span></code> before the statement:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chidb&gt; EXPLAIN SELECT * from courses;
+</pre></div>
+</div>
+</section>
+<section id="other-commands">
+<h2>Other commands<a class="headerlink" href="shell.html#other-commands" title="Link to this heading">¶</a></h2>
+<p>The shell provides a number of other auxiliary commands, all of which start with a <code class="docutils literal notranslate"><span class="pre">.</span></code>:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">.open</span> <span class="pre">FILENAME</span></code>: Closes the existing database (if any) and opens <code class="docutils literal notranslate"><span class="pre">FILENAME</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.parse</span> <span class="pre">&quot;SQL&quot;</span></code>: Shows the parse tree for statement <code class="docutils literal notranslate"><span class="pre">SQL</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.headers</span> <span class="pre">on|off</span></code>: Switch display of headers on or off in query results.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.mode</span> <span class="pre">MODE</span></code>: Switch display mode. <code class="docutils literal notranslate"><span class="pre">MODE</span></code> is one of:
+* <code class="docutils literal notranslate"><span class="pre">column</span></code>: Left-aligned columns
+* <code class="docutils literal notranslate"><span class="pre">list</span></code>: Values delimited by <code class="docutils literal notranslate"><span class="pre">|</span></code> (default)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.explain</span> <span class="pre">on|off</span></code>: When on, turns headers on and uses column mode (more suitable for displaying
+EXPLAIN results)</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">.help</span></code>: Print a help message with all the available commands.</p></li>
+</ul>
+</section>
+<section id="running-non-interactively">
+<h2>Running non-interactively<a class="headerlink" href="shell.html#running-non-interactively" title="Link to this heading">¶</a></h2>
+<p>If you want to run a single SQL statement or a single chidb shell command, you can run it
+from the command-line (without entering the chidb shell) by using the <code class="docutils literal notranslate"><span class="pre">-c</span></code> parameter.
+For example:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>$ ./chidb tests/files/databases/1table-1page.cdb -c &quot;SELECT * from courses;&quot;
+21000|Programming Languages|75|89
+23500|Databases||42
+27500|Operating Systems||89
+</pre></div>
+</div>
+<p>Auxiliary commands, including <code class="docutils literal notranslate"><span class="pre">.dbmrun</span></code>, can also be run:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>$ ./chidb tests/files/databases/1table-1page.cdb -c &quot;.dbmrun tests/files/dbm-programs/sql-select/select-002.dbmf&quot;
+RESULT ROWS
+-----------
+21000,&quot;Programming Languages&quot;,75,89
+23500,&quot;Databases&quot;,NULL,42
+27500,&quot;Operating Systems&quot;,NULL,89
+
+     opcode          P1     P2     P3     P4
+     --------------- ------ ------ ------ ------
+  0: Integer         2      0      0      NULL
+  1: OpenRead        0      0      4      NULL
+  2: Rewind          0      9      0      NULL
+  3: Key             0      1      0      NULL
+  4: Column          0      1      2      NULL
+  5: Column          0      2      3      NULL
+  6: Column          0      3      4      NULL
+  7: ResultRow       1      4      0      NULL
+  8: Next            0      3      0      NULL
+  9: Close           0      0      0      NULL
+ 10: Halt            0      0      0      NULL
+     --------------- ------ ------ ------ ------
+
+REGISTERS
+---------
+R_0 = 2
+R_1 = 27500
+R_2 = &quot;Operating Systems&quot;
+R_3 = NULL
+R_4 = 89
+</pre></div>
+</div>
+</section>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="previous">
+    <a href="testing.html" title="Previous Chapter: Testing your Implementation"><span class="glyphicon glyphicon-chevron-left visible-sm"></span><span class="hidden-sm hidden-tablet">&laquo; Testing your Implementation</span>
+    </a>
+    </li>
+    <li class="next">
+    <a href="http://chi.cs.uchicago.edu/chirc/index.html" title="Next Chapter: chirc"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">chirc &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="shell.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,929 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>The chidb Architecture &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script async="async" src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="Installing, Building, and Running chidb" href="installing.html" />
+    <link rel="prev" title="The chidb File Format" href="fileformat.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+          <li><a href="index.html">chidb</a></li>
+            <li class="active">The chidb Architecture</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="the-chidb-architecture">
+<span id="chidb-architecture"></span><h1>The chidb Architecture<a class="headerlink" href="architecture.html#the-chidb-architecture" title="Link to this heading">¶</a></h1>
+<p>This section describes the chidb architecture, summarized in the following figure:</p>
+<figure class="align-default">
+<img alt="chidb architecture" src="../_images/arch_overview.png" />
+</figure>
+<dl>
+<dt>Backend</dt><dd><p>Contains the <strong>B-Tree module</strong> and the <strong>Pager module</strong>. The
+B-Tree module is responsible for managing a collection of file-based
+B-Trees, using the chidb file format. However, the B-Tree module
+does not include any I/O code. All I/O is delegated to the Pager,
+which provides a page-by-page access to a chidb file. The Pager may
+include a page cache to optimize disk access.</p>
+<p>The specifications of the chidb file format can be found in
+<a class="reference internal" href="fileformat.html#chidb-fileformat"><span class="std std-ref">The chidb File Format</span></a></p>
+</dd>
+<dt>Core</dt><dd><p>Contains the <strong>chidb API</strong>, a <strong>SQL compiler</strong>, and a
+<strong>database machine</strong> (or DBM). The API is the interface that other
+applications must go through to use a chidb file, and allows client
+software to open a chidb file, execute SQL statements on that file,
+and close the file. When a SQL statement is submitted, it is
+processed by the SQL compiler. The compiler itself is divided into
+two modules: a SQL parser, which produces a convenient in-memory
+representation of a SQL query, and the code generator and optimizer,
+which generates code for the database machine. The database machine
+is a virtual machine specifically designed to operate on chidb
+files, and includes instructions such as “Create a new table”, “Find
+a record with key <span class="math notranslate nohighlight">\(k\)</span>”, etc.</p>
+</dd>
+<dt>Accessories</dt><dd><p>Includes a <strong>utilities</strong> modules, with miscellaneous code that are
+used across all modules, and <strong>testing</strong> code.</p>
+</dd>
+</dl>
+<section id="chidb-api">
+<h2>chidb API<a class="headerlink" href="architecture.html#chidb-api" title="Link to this heading">¶</a></h2>
+<p>The chidb API comprises a set of functions that allows client software
+to access and manipulate chidb files, including executing SQL statements
+on them. Unless otherwise noted, each API function returns one of the
+return codes listed in the following table. This table lists every
+possible return code; the description of each API function notes what
+return codes can be returned by that specific function.</p>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Name</strong></p></th>
+<th class="head"><p><strong>Integer code</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_OK</span></code></p></td>
+<td><p>0</p></td>
+<td><p>Succesful result</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_EINVALIDSQL</span></code></p></td>
+<td><p>1</p></td>
+<td><p>Invalid SQL</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_ENOMEM</span></code></p></td>
+<td><p>2</p></td>
+<td><p>Could not allocate memory</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_ECANTOPEN</span></code></p></td>
+<td><p>3</p></td>
+<td><p>Unable to open the database file</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_ECORRUPT</span></code></p></td>
+<td><p>4</p></td>
+<td><p>The database file is not well formed</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_ECONSTRAINT</span></code></p></td>
+<td><p>5</p></td>
+<td><p>SQL statement failed because of a constraint violation</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_EMISMATCH</span></code></p></td>
+<td><p>6</p></td>
+<td><p>Data type mismatch</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_EIO</span></code></p></td>
+<td><p>7</p></td>
+<td><p>An I/O error has occurred when accessing the file</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_EMISUSE</span></code></p></td>
+<td><p>8</p></td>
+<td><p>API used incorrectly</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_ROW</span></code></p></td>
+<td><p>100</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">chidb_step()</span></code> has another row ready</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CHIDB_DONE</span></code></p></td>
+<td><p>101</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">chidb_step()</span></code> has finished executing</p></td>
+</tr>
+</tbody>
+</table>
+<section id="chidb-open">
+<h3><code class="docutils literal notranslate"><span class="pre">chidb_open</span></code><a class="headerlink" href="architecture.html#chidb-open" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">chidb_open</span></code> function is used to open a chidb file. Its signature
+is the following:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_open</span><span class="p">(</span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="o">*</span><span class="w"> </span><span class="n">file</span><span class="p">,</span>
+<span class="w">  </span><span class="n">chidb</span><span class="o">**</span><span class="w">     </span><span class="n">db</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">file</span></code> is the filename of the chidb file to open. If the file does not
+exist, it will be created. <code class="docutils literal notranslate"><span class="pre">db</span></code> is used to return a pointer to a
+<code class="docutils literal notranslate"><span class="pre">chidb</span></code> variable. The <code class="docutils literal notranslate"><span class="pre">chidb</span></code> type is an <em>opaque</em> type representing
+a chidb database. In other words, an API user should not be concerned
+with what is contained in a <code class="docutils literal notranslate"><span class="pre">chidb</span></code> variable, and should simply use it
+as a representation of a chidb database to pass along to other API
+functions.</p>
+<p>The return value of the function can be <code class="docutils literal notranslate"><span class="pre">CHIDB_OK</span></code>, <code class="docutils literal notranslate"><span class="pre">CHIDB_ENOMEM</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CHIDB_ECANTOPEN</span></code>, <code class="docutils literal notranslate"><span class="pre">CHIDB_ECORRUPT</span></code>, or <code class="docutils literal notranslate"><span class="pre">CHIDB_EIO</span></code>.</p>
+</section>
+<section id="chidb-close">
+<h3><code class="docutils literal notranslate"><span class="pre">chidb_close</span></code><a class="headerlink" href="architecture.html#chidb-close" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">chidb_close</span></code> function is used to close a chidb file. Its
+signature is the following:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_close</span><span class="p">(</span><span class="n">chidb</span><span class="w"> </span><span class="o">*</span><span class="n">db</span><span class="p">);</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">db</span></code> is the database to close.</p>
+<p>The return value of the function can be <code class="docutils literal notranslate"><span class="pre">CHIDB_OK</span></code> or
+<code class="docutils literal notranslate"><span class="pre">CHIDB_EMISUSE</span></code> (if called on a database that is already closed).</p>
+</section>
+<section id="int-chidb-prepare">
+<h3><code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">chidb_prepare</span></code><a class="headerlink" href="architecture.html#int-chidb-prepare" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">chidb_prepare</span></code> function is used to prepare a SQL statement for
+execution. Internally, this will require compiling the SQL statement
+(but not running it yet). The function’s signature is:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_prepare</span><span class="p">(</span>
+<span class="w">  </span><span class="n">chidb</span><span class="o">*</span><span class="w">       </span><span class="n">db</span><span class="p">,</span>
+<span class="w">  </span><span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="o">*</span><span class="w">  </span><span class="n">sql</span><span class="p">,</span>
+<span class="w">  </span><span class="n">chidb_stmt</span><span class="o">**</span><span class="w"> </span><span class="n">stmt</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">db</span></code> is the database on which to run the SQL statement. <code class="docutils literal notranslate"><span class="pre">sql</span></code> is the
+SQL statement itself. <code class="docutils literal notranslate"><span class="pre">stmt</span></code> is used to return a pointer to a
+<code class="docutils literal notranslate"><span class="pre">chidb_stmt</span></code> variable. The <code class="docutils literal notranslate"><span class="pre">chidb_stmt</span></code> type is an <em>opaque</em> type
+representing a SQL statement.</p>
+<p>The return value of the function can be <code class="docutils literal notranslate"><span class="pre">CHIDB_OK</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CHIDB_EINVALIDSQL</span></code>, <code class="docutils literal notranslate"><span class="pre">CHIDB_ENOMEM</span></code>.</p>
+</section>
+<section id="int-chidb-step">
+<h3><code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">chidb_step</span></code><a class="headerlink" href="architecture.html#int-chidb-step" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">chidb_step</span></code> function runs a prepared SQL statement until a result
+row is available (or just runs the SQL statement to completion if it is
+not meant to produce a result row, such as an INSERT statement). Its
+signature is:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_step</span><span class="p">(</span><span class="n">chidb_stmt</span><span class="w"> </span><span class="o">*</span><span class="n">stmt</span><span class="p">);</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">stmt</span></code> is the SQL statement to run.</p>
+<p>If the statement is a SELECT statement, <code class="docutils literal notranslate"><span class="pre">chidb_step</span></code> returns
+<code class="docutils literal notranslate"><span class="pre">CHIDB_ROW</span></code> each time a result row is produced. The values of the
+result row can be accessed using the column access functions described
+below. Thus, <code class="docutils literal notranslate"><span class="pre">chidb_step</span></code> has to be called repeatedly to access all
+the rows returned by the query. Once there are no more rows left, or if
+the statement is not meant to produce any results, then <code class="docutils literal notranslate"><span class="pre">CHIDB_DONE</span></code>
+is returned (note that this function does not return <code class="docutils literal notranslate"><span class="pre">CHIDB_OK</span></code>).</p>
+<p>The function can also return <code class="docutils literal notranslate"><span class="pre">CHIDB_ECONSTRAINT</span></code>, <code class="docutils literal notranslate"><span class="pre">CHIDB_EMISMATCH</span></code>,
+<code class="docutils literal notranslate"><span class="pre">CHIDB_EMISUSE</span></code> (if called on a finalized SQL statement), or
+<code class="docutils literal notranslate"><span class="pre">CHIDB_EIO</span></code>.</p>
+</section>
+<section id="int-chidb-finalize">
+<h3><code class="docutils literal notranslate"><span class="pre">int</span> <span class="pre">chidb_finalize</span></code><a class="headerlink" href="architecture.html#int-chidb-finalize" title="Link to this heading">¶</a></h3>
+<p>The <code class="docutils literal notranslate"><span class="pre">chidb_finalize</span></code> function finalizes a SQL statement, freeing all
+resources associated with it.</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_finalize</span><span class="p">(</span><span class="n">chidb_stmt</span><span class="w"> </span><span class="o">*</span><span class="n">stmt</span><span class="p">);</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">stmt</span></code> is the SQL statement to finalize.</p>
+<p>The return value of the function can be <code class="docutils literal notranslate"><span class="pre">CHIDB_OK</span></code> or
+<code class="docutils literal notranslate"><span class="pre">CHIDB_EMISUSE</span></code> (if called on a statement that is already finalized).</p>
+</section>
+<section id="column-access-functions">
+<h3>Column access functions<a class="headerlink" href="architecture.html#column-access-functions" title="Link to this heading">¶</a></h3>
+<p>Once a SQL statement has been prepared, the following three functions
+can be used to obtain information on the columns of the rows that will
+be returned by the statement:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_column_count</span><span class="p">(</span><span class="n">chidb_stmt</span><span class="w"> </span><span class="o">*</span><span class="n">stmt</span><span class="p">);</span>
+
+<span class="kt">int</span><span class="w"> </span><span class="nf">chidb_column_type</span><span class="p">(</span>
+<span class="w">  </span><span class="n">chidb_stmt</span><span class="o">*</span><span class="w"> </span><span class="n">stmt</span><span class="p">,</span>
+<span class="w">  </span><span class="kt">int</span><span class="w">         </span><span class="n">col</span>
+<span class="p">);</span>
+
+<span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="nf">chidb_column_name</span><span class="p">(</span>
+<span class="w">  </span><span class="n">chidb_stmt</span><span class="o">*</span><span class="w"> </span><span class="n">stmt</span><span class="p">,</span>
+<span class="w">  </span><span class="kt">int</span><span class="w">         </span><span class="n">col</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+<p>In all these functions, the <code class="docutils literal notranslate"><span class="pre">stmt</span></code> parameter is the prepared SQL
+statement.</p>
+<p><code class="docutils literal notranslate"><span class="pre">chidb_column_count</span></code> returns the number of columns in the result rows.
+If the SQL statement is not meant to produce any results (such as an
+INSERT statement), then 0 is returned.</p>
+<p><code class="docutils literal notranslate"><span class="pre">chidb_column_type</span></code> returns the type of column <code class="docutils literal notranslate"><span class="pre">col</span></code> (columns are
+numbered from 0). The supported types are summarized in the folllowing
+table.</p>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p><strong>Header Value</strong></p></th>
+<th class="head"><p><strong>SQL Type</strong></p></th>
+<th class="head"><p><strong>Description</strong></p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>0</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">NULL</span></code></p></td>
+<td><p>Null value</p></td>
+</tr>
+<tr class="row-odd"><td><p>1</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">BYTE</span></code></p></td>
+<td><p>1-byte signed integer</p></td>
+</tr>
+<tr class="row-even"><td><p>2</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">SMALLINT</span></code></p></td>
+<td><p>2-byte signed integer</p></td>
+</tr>
+<tr class="row-odd"><td><p>4</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">INTEGER</span></code></p></td>
+<td><p>4-byte signed integer</p></td>
+</tr>
+<tr class="row-even"><td><p><span class="math notranslate nohighlight">\(2\cdot\texttt{n}+13\)</span></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">TEXT</span></code></p></td>
+<td><p>Character string</p></td>
+</tr>
+</tbody>
+</table>
+<p><code class="docutils literal notranslate"><span class="pre">chidb_column_name</span></code> returns a pointer to a null-terminated string
+containing the name of column <code class="docutils literal notranslate"><span class="pre">col</span></code>. The API client does not have to
+<code class="docutils literal notranslate"><span class="pre">free()</span></code> the returned string. It is the API function’s responsibility
+to allocate and free the memory for this string.</p>
+<p>If <code class="docutils literal notranslate"><span class="pre">chidb_step</span></code> returns <code class="docutils literal notranslate"><span class="pre">CHIDB_ROW</span></code>, the following two functions can
+be used to access the contents of each column:</p>
+<div class="highlight-c notranslate"><div class="highlight"><pre><span></span><span class="kt">int</span><span class="w"> </span><span class="nf">chidb_column_int</span><span class="p">(</span>
+<span class="w">  </span><span class="n">chidb_stmt</span><span class="o">*</span><span class="w"> </span><span class="n">stmt</span><span class="p">,</span>
+<span class="w">  </span><span class="kt">int</span><span class="w">         </span><span class="n">col</span>
+<span class="p">);</span>
+
+<span class="k">const</span><span class="w"> </span><span class="kt">char</span><span class="w"> </span><span class="o">*</span><span class="nf">chidb_column_text</span><span class="p">(</span>
+<span class="w">  </span><span class="n">chidb_stmt</span><span class="o">*</span><span class="w"> </span><span class="n">stmt</span><span class="p">,</span>
+<span class="w">  </span><span class="kt">int</span><span class="w">         </span><span class="n">col</span>
+<span class="p">);</span>
+</pre></div>
+</div>
+<p>In all these functions, the <code class="docutils literal notranslate"><span class="pre">stmt</span></code> parameter is the SQL statement.</p>
+<p><code class="docutils literal notranslate"><span class="pre">chidb_column_int</span></code> returns the integer value in column <code class="docutils literal notranslate"><span class="pre">col</span></code> of the
+row. The column must be of type <code class="docutils literal notranslate"><span class="pre">BYTE</span></code>, <code class="docutils literal notranslate"><span class="pre">SMALLINT</span></code>, or <code class="docutils literal notranslate"><span class="pre">INTEGER</span></code>.</p>
+<p><code class="docutils literal notranslate"><span class="pre">chidb_column_text</span></code> returns a pointer to a null-terminated string
+containing the value in column <code class="docutils literal notranslate"><span class="pre">col</span></code> of the row. The API client does
+not have to <code class="docutils literal notranslate"><span class="pre">free()</span></code> the returned string. It is the API function’s
+responsibility to allocate and free the memory for this string.</p>
+<p>Note that none of these functions return error codes. Calling the column
+access functions on an unprepared statement, or accessing column values
+on a statement that has not produced a result row, will produce
+unexpected behaviour.</p>
+</section>
+</section>
+<section id="database-machine">
+<span id="chidb-dbm"></span><h2>Database Machine<a class="headerlink" href="architecture.html#database-machine" title="Link to this heading">¶</a></h2>
+<p>The database machine (or DBM) is a computing machine specifically
+designed to operate on chidb files, and includes instructions such as
+“Create a new table”, “Find a record with key <span class="math notranslate nohighlight">\(k\)</span>”, etc. The DBM
+architecture is summarized in the following figure:</p>
+<figure class="align-default">
+<img alt="chidb Database Machine" src="../_images/dbm.png" />
+</figure>
+<dl class="simple">
+<dt>The DBM program</dt><dd><p>A DBM program is composed of one or more DBM instructions. An
+instruction contains an operation code and up to four operands: P1,
+P2, P3, and P4. P1 through P3 are signed 32-bit integers, and P4 is
+a pointer to a null-terminated string. All the DBM instructions are
+described below. Instructions in the DBM program are
+numbered from 0.</p>
+</dd>
+<dt>Program counter</dt><dd><p>Keeps track of what instruction is currently being executed. Certain
+instructions can directly modify the program counter to jump to a
+specific instruction in the program.</p>
+</dd>
+<dt>Registers</dt><dd><p>The DBM has an unlimited number of registers. A register can contain
+a 32-bit signed integer, a pointer to a null-terminated string or to
+raw binary data, or a NULL value. Registers are numbered from 0.</p>
+</dd>
+<dt>Cursors</dt><dd><p>A cursor is a pointer to a specific entry in a B-Tree. Cursors must
+be able to move to the next or previous entry in a B-Tree in
+amortized <span class="math notranslate nohighlight">\(O(1)\)</span> time. Hint: this will require an auxiliary
+data structure of size <span class="math notranslate nohighlight">\(O(\log(n))\)</span>.</p>
+</dd>
+</dl>
+<p>A DBM starts executing a program on the <span class="math notranslate nohighlight">\(0^{\textrm{th}}\)</span>
+instruction, and executes subsequent instructions sequentially until a
+<code class="docutils literal notranslate"><span class="pre">Halt</span></code> instruction is encountered, or until the program counter
+advances past the end of the program (which is equivalent to a <code class="docutils literal notranslate"><span class="pre">Halt</span></code>
+instruction with all its parameters set to 0). Note that it is also
+possible for individual instructions to fail, resulting in a premature
+termination of the program.</p>
+<section id="register-manipulation-instructions">
+<h3>Register Manipulation Instructions<a class="headerlink" href="architecture.html#register-manipulation-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Integer</span></code></p></td>
+<td><p>An integer <span class="math notranslate nohighlight">\(i\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span></p></td>
+<td></td>
+<td></td>
+<td><p>Store <span class="math notranslate nohighlight">\(i\)</span> in <span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">String</span></code></p></td>
+<td><p>A length <span class="math notranslate nohighlight">\(l\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span></p></td>
+<td></td>
+<td><p>A string <span class="math notranslate nohighlight">\(s\)</span></p></td>
+<td><p>Store <span class="math notranslate nohighlight">\(s\)</span> (with length <span class="math notranslate nohighlight">\(l\)</span>) in
+<span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Null</span></code></p></td>
+<td></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span></p></td>
+<td></td>
+<td></td>
+<td><p>Store a null value in <span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SCopy</span></code></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_1\)</span></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_2\)</span></p></td>
+<td></td>
+<td></td>
+<td><p>Make a shallow copy of the contents of
+<span class="math notranslate nohighlight">\(r_1\)</span> into <span class="math notranslate nohighlight">\(r_2\)</span>. i.e., <span class="math notranslate nohighlight">\(r_2\)</span>
+must be left <em>pointing</em> to the same value as
+<span class="math notranslate nohighlight">\(r_1\)</span>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="control-flow-instructions">
+<h3>Control Flow Instructions<a class="headerlink" href="architecture.html#control-flow-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Eq</span></code></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_1\)</span></p></td>
+<td><p>A jump address
+<span class="math notranslate nohighlight">\(j\)</span></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_2\)</span></p></td>
+<td></td>
+<td><p>If the contents of <span class="math notranslate nohighlight">\(r_1\)</span> are equal to
+the contents of <span class="math notranslate nohighlight">\(r_2\)</span>, jump to <span class="math notranslate nohighlight">\(j\)</span>.
+Otherwise, do nothing. This instruction assumes
+that the types of the contents of both registers
+are the same. The behaviour when either of the
+registers is NULL is undefined.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Ne</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Eq</span></code>, but testing for inequality of values</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Lt</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Eq</span></code>, but testing for the value in <span class="math notranslate nohighlight">\(r_2\)</span> being less than the value in <span class="math notranslate nohighlight">\(r_1\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Le</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Eq</span></code>, but testing for the value in <span class="math notranslate nohighlight">\(r_2\)</span> being less than or equal to the value in <span class="math notranslate nohighlight">\(r_1\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Gt</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Eq</span></code>, but testing for the value in <span class="math notranslate nohighlight">\(r_2\)</span> being greater than the value in <span class="math notranslate nohighlight">\(r_1\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Ge</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Eq</span></code>, but testing for the value in <span class="math notranslate nohighlight">\(r_2\)</span> being greater than or equal to the value in <span class="math notranslate nohighlight">\(r_1\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Halt</span></code></p></td>
+<td><p>An integer
+<span class="math notranslate nohighlight">\(n\)</span></p></td>
+<td></td>
+<td></td>
+<td><p>An error message
+<span class="math notranslate nohighlight">\(s\)</span></p></td>
+<td><p>Halt execution of the database machine and
+return error code <span class="math notranslate nohighlight">\(n\)</span>. If <span class="math notranslate nohighlight">\(n\neq 0\)</span>,
+set the machine’s error message to <span class="math notranslate nohighlight">\(s\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Noop</span></code></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+<td><p>Does nothing.</p></td>
+</tr>
+</tbody>
+</table>
+<p>Note: Unless instructed otherwise, comparison of binary registers is not necessary. If instructed to implement it, then
+comparisons must be made byte by byte. Two binary blobs are equal if and only if they have the same length and contain
+the exact same bytes. If two binary blobs have different lengths, order is determined by the common bytes between the two blobs.
+If the common bytes are equal, then the blob with the fewer bytes is considered to be less than the blob with more bytes.</p>
+</section>
+<section id="database-opening-and-closing-instructions">
+<h3>Database Opening and Closing Instructions<a class="headerlink" href="architecture.html#database-opening-and-closing-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">OpenRead</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span>.
+The register must
+contain a page number
+<span class="math notranslate nohighlight">\(n\)</span></p></td>
+<td><p>The number of
+columns in the table
+(0 if opening an
+index)</p></td>
+<td></td>
+<td><p>Opens the B-Tree rooted at the page <span class="math notranslate nohighlight">\(n\)</span>
+for read-only access and stores a cursor for it
+in <span class="math notranslate nohighlight">\(c\)</span></p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">OpenWrite</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">OpenRead</span></code> but opening the B-Tree in read/write mode</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Close</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td><p>Closes cursor <span class="math notranslate nohighlight">\(c\)</span> and frees up any
+resources associated with it.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="cursor-manipulation-instructions">
+<h3>Cursor Manipulation Instructions<a class="headerlink" href="architecture.html#cursor-manipulation-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Rewind</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A jump address
+<span class="math notranslate nohighlight">\(j\)</span></p></td>
+<td></td>
+<td></td>
+<td><p>Makes cursor <span class="math notranslate nohighlight">\(c\)</span> point to the first entry
+in the B-Tree. If the B-Tree is empty, then jump
+to <span class="math notranslate nohighlight">\(j\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Next</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A jump address
+<span class="math notranslate nohighlight">\(j\)</span></p></td>
+<td></td>
+<td></td>
+<td><p>Advance cursor <span class="math notranslate nohighlight">\(c\)</span> to the next entry in
+the B-Tree and jump to <span class="math notranslate nohighlight">\(j\)</span>. If there are
+no more entries (if cursor <span class="math notranslate nohighlight">\(c\)</span> was
+pointing at the last entry in the B-Tree),
+do nothing.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Prev</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Next</span></code> but moving the cursor to the previous entry</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Seek</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A jump address
+<span class="math notranslate nohighlight">\(j\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span>.
+The register must
+contain a key
+<span class="math notranslate nohighlight">\(k\)</span></p></td>
+<td></td>
+<td><p>Move cursor <span class="math notranslate nohighlight">\(c\)</span> to point to the entry
+with key equal to <span class="math notranslate nohighlight">\(k\)</span>. If the cursor points
+to an index B-Tree, the key that must match is
+<span class="math notranslate nohighlight">\(IdxKey\)</span> in the <span class="math notranslate nohighlight">\((IdxKey,PKey)\)</span> pair.
+If the B-Tree doesn’t contain <span class="math notranslate nohighlight">\(k\)</span>, jump to
+<span class="math notranslate nohighlight">\(j\)</span>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SeekGt</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Seek</span></code>, but moving the cursor to the first entry such that its key is greater than <span class="math notranslate nohighlight">\(k\)</span>.</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SeekGe</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Seek</span></code>, but moving the cursor to the first entry such that its key is greater than or equal to <span class="math notranslate nohighlight">\(k\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">SeekLt</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Seek</span></code>, but moving the cursor to the entry with the largest key less than <span class="math notranslate nohighlight">\(k\)</span>.</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">SeekLe</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">Seek</span></code>, but moving the cursor to the entry with the largest key less than or equal to <span class="math notranslate nohighlight">\(k\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">IdxGt</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A jump address
+<span class="math notranslate nohighlight">\(j\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span>.
+The register must
+contain a key
+<span class="math notranslate nohighlight">\(k\)</span></p></td>
+<td></td>
+<td><p>Cursor <span class="math notranslate nohighlight">\(c\)</span> points to an index entry
+containing a <span class="math notranslate nohighlight">\((IdxKey,PKey)\)</span> pair.
+If <span class="math notranslate nohighlight">\(IdxKey\)</span> is greater than <span class="math notranslate nohighlight">\(k\)</span>,
+jump to <span class="math notranslate nohighlight">\(j\)</span>. Otherwise, do nothing.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">IdxGe</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">IdxGt</span></code>, but testing for <span class="math notranslate nohighlight">\(IdxKey\)</span> being greater than or equal to <span class="math notranslate nohighlight">\(k\)</span>.</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">IdxLt</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">IdxGt</span></code>, but testing for <span class="math notranslate nohighlight">\(IdxKey\)</span> being less than <span class="math notranslate nohighlight">\(k\)</span>.</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">IdxLe</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">IdxGt</span></code>, but testing for <span class="math notranslate nohighlight">\(IdxKey\)</span> being less than or equal to <span class="math notranslate nohighlight">\(k\)</span>.</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="cursor-access-instructions">
+<h3>Cursor Access Instructions<a class="headerlink" href="architecture.html#cursor-access-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Column</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A column number
+<span class="math notranslate nohighlight">\(n\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+<td></td>
+<td><p>Store in register <span class="math notranslate nohighlight">\(r\)</span> the value in the
+<span class="math notranslate nohighlight">\(n\)</span>-th column of the entry pointed at by
+cursor <span class="math notranslate nohighlight">\(c\)</span>. Columns are numbered from 0.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">Key</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+<td></td>
+<td></td>
+<td><p>Store in register <span class="math notranslate nohighlight">\(r\)</span> the value of the
+key of the entry pointed at by cursor <span class="math notranslate nohighlight">\(c\)</span>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">IdxPKey</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+<td></td>
+<td></td>
+<td><p>Cursor <span class="math notranslate nohighlight">\(c\)</span> points to an index entry
+containing a <span class="math notranslate nohighlight">\((IdxKey,PKey)\)</span> pair. Store
+<span class="math notranslate nohighlight">\(PKey\)</span> in <span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="database-record-instructions">
+<h3>Database Record Instructions<a class="headerlink" href="architecture.html#database-record-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MakeRecord</span></code></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_1\)</span></p></td>
+<td><p>An integer <span class="math notranslate nohighlight">\(n\)</span></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_2\)</span></p></td>
+<td></td>
+<td><p>Create a database record using the values from
+registers <span class="math notranslate nohighlight">\(r_1\)</span> through <span class="math notranslate nohighlight">\(r_1+n-1\)</span>,
+and store the record in <span class="math notranslate nohighlight">\(r_2\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">ResultRow</span></code></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span></p></td>
+<td><p>An integer <span class="math notranslate nohighlight">\(n\)</span></p></td>
+<td></td>
+<td></td>
+<td><p>This instructions indicates that a result row
+has been produced and pauses execution for the
+database machine user to fetch the result row.
+The result row is formed by the values stored
+in registers <span class="math notranslate nohighlight">\(r\)</span> through <span class="math notranslate nohighlight">\(r+n-1\)</span>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="insertion-instructions">
+<h3>Insertion Instructions<a class="headerlink" href="architecture.html#insertion-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">Insert</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_1\)</span>.
+The register must
+contain a database
+record <span class="math notranslate nohighlight">\(v\)</span></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_2\)</span>.
+The register must
+contain a key
+<span class="math notranslate nohighlight">\(k\)</span></p></td>
+<td></td>
+<td><p>Inserts an entry, with key <span class="math notranslate nohighlight">\(k\)</span> and value
+<span class="math notranslate nohighlight">\(v\)</span>, in the B-Tree pointed at by cursor
+<span class="math notranslate nohighlight">\(c\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">IdxInsert</span></code></p></td>
+<td><p>A cursor <span class="math notranslate nohighlight">\(c\)</span></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_1\)</span>.
+The register must
+contain a key
+<span class="math notranslate nohighlight">\(IdxKey\)</span></p></td>
+<td><p>A register
+<span class="math notranslate nohighlight">\(r_2\)</span>.
+The register must
+contain a key
+<span class="math notranslate nohighlight">\(PKey\)</span></p></td>
+<td></td>
+<td><p>Add a new <span class="math notranslate nohighlight">\((IdxKey,PKey)\)</span> entry in the
+index B-Tree pointed at by cursor <span class="math notranslate nohighlight">\(c\)</span>.</p></td>
+</tr>
+</tbody>
+</table>
+</section>
+<section id="b-tree-creation-instructions">
+<h3>B-Tree Creation Instructions<a class="headerlink" href="architecture.html#b-tree-creation-instructions" title="Link to this heading">¶</a></h3>
+<table class="table-bordered docutils align-default">
+<thead>
+<tr class="row-odd"><th class="head"><p>Instruction</p></th>
+<th class="head"><p>P1</p></th>
+<th class="head"><p>P2</p></th>
+<th class="head"><p>P3</p></th>
+<th class="head"><p>P4</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">CreateTable</span></code></p></td>
+<td><p>A register <span class="math notranslate nohighlight">\(r\)</span></p></td>
+<td></td>
+<td></td>
+<td></td>
+<td><p>Create a new table B-Tree and store its root
+page in <span class="math notranslate nohighlight">\(r\)</span>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">CreateIndex</span></code></p></td>
+<td><p>Same as <code class="docutils literal notranslate"><span class="pre">CreateTable</span></code>, but creating an index B-Tree.</p></td>
+<td></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</section>
+</section>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="previous">
+    <a href="fileformat.html" title="Previous Chapter: The chidb File Format"><span class="glyphicon glyphicon-chevron-left visible-sm"></span><span class="hidden-sm hidden-tablet">&laquo; The chidb File Format</span>
+    </a>
+    </li>
+    <li class="next">
+    <a href="installing.html" title="Next Chapter: Installing, Building, and Running chidb"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">Installing, Building, and Running chidb &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="architecture.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

@@ -1,0 +1,247 @@
+
+<!DOCTYPE html>
+
+<html lang="en" data-content_root="../">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>Assignment IV: Query Optimization &#8212; The UChicago χ-Projects</title>
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=fa44fd50" />
+    <link rel="stylesheet" type="text/css" href="../_static/bootstrap-sphinx.css?v=284a2d1d" />
+    <link rel="stylesheet" type="text/css" href="../_static/chiweb.css?v=95aedf88" />
+    <script src="../_static/documentation_options.js?v=5929fcd5"></script>
+    <script src="../_static/doctools.js?v=888ff710"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <link rel="author" title="About these documents" href="http://chi.cs.uchicago.edu/about.html" />
+    <link rel="index" title="Index" href="http://chi.cs.uchicago.edu/genindex.html" />
+    <link rel="search" title="Search" href="http://chi.cs.uchicago.edu/search.html" />
+    <link rel="next" title="Testing your Implementation" href="testing.html" />
+    <link rel="prev" title="Assignment III: Code Generation" href="assignment_codegen.html" />
+
+<meta charset='utf-8'>
+<meta http-equiv='X-UA-Compatible' content='IE=edge,chrome=1'>
+<meta name='viewport' content='width=device-width, initial-scale=1.0, maximum-scale=1'>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<script type="text/javascript" src="../_static/js/jquery-1.12.4.min.js"></script>
+<script type="text/javascript" src="../_static/js/jquery-fix.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-3.4.1/js/bootstrap.min.js"></script>
+<script type="text/javascript" src="../_static/bootstrap-sphinx.js"></script>
+
+<script>
+  (function(i,s,o,g,r,a,m){i['GoogleAnalyticsObject']=r;i[r]=i[r]||function(){
+  (i[r].q=i[r].q||[]).push(arguments)},i[r].l=1*new Date();a=s.createElement(o),
+  m=s.getElementsByTagName(o)[0];a.async=1;a.src=g;m.parentNode.insertBefore(a,m)
+  })(window,document,'script','//www.google-analytics.com/analytics.js','ga');
+
+  ga('create', 'UA-27880910-3', 'auto');
+  ga('send', 'pageview');
+
+</script>
+
+  </head><body>
+
+  <div id="navbar" class="navbar navbar-default navbar-fixed-top">
+    <div class="container">
+      <div class="navbar-header">
+        <!-- .btn-navbar is used as the toggle for collapsed navbar content -->
+        <button type="button" class="navbar-toggle" data-toggle="collapse" data-target=".nav-collapse">
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+          <span class="icon-bar"></span>
+        </button>
+        <a class="navbar-brand" href="http://chi.cs.uchicago.edu/index.html">
+          The UChicago χ-Projects</a>
+        <span class="navbar-text navbar-version pull-left"><b></b></span>
+      </div>
+
+        <div class="collapse navbar-collapse nav-collapse">
+          <ul class="nav navbar-nav">
+            
+                <li><a href="http://chi.cs.uchicago.edu/about.html">About</a></li>
+            
+            
+              <li class="dropdown globaltoc-container">
+  <a role="button"
+     id="dLabelGlobalToc"
+     data-toggle="dropdown"
+     data-target="#"
+     href="http://chi.cs.uchicago.edu/index.html">Projects <b class="caret"></b></a>
+  <ul class="dropdown-menu globaltoc"
+      role="menu"
+      aria-labelledby="dLabelGlobalToc">
+      
+      <li class="toctree-l1"><a class="reference internal" href="index.html">chidb</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirc/index.html">chirc</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chitcp/index.html">chiTCP</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chirouter/index.html">chirouter</a></li> 
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chistributed/index.html">chistributed</a></li>
+      <li class="toctree-l1"><a class="reference internal" href="http://chi.cs.uchicago.edu/chisubmit/index.html">chisubmit</a></li>      
+  </ul>
+</li>
+              
+            
+            
+            
+            
+            
+          </ul>
+
+          
+            
+<form class="navbar-form navbar-right" action="http://chi.cs.uchicago.edu/search.html" method="get">
+ <div class="form-group">
+  <input type="text" name="q" class="form-control" placeholder="Search" />
+ </div>
+  <input type="hidden" name="check_keywords" value="yes" />
+  <input type="hidden" name="area" value="default" />
+</form>
+          
+        </div>
+    </div>
+  </div>
+
+<div class="container">
+  <div class="row">
+<div class="row">
+    <div class="col-md-12">
+        <ul class="breadcrumb">
+          <li><a href="http://chi.cs.uchicago.edu/index.html">The UChicago χ-Projects</a></li>
+          <li><a href="index.html">chidb</a></li>
+            <li class="active">Assignment IV: Query Optimization</li>
+        </ul>
+    </div>
+</div>
+
+
+    <div class="body col-md-12 content" role="main">
+      
+  <section id="assignment-iv-query-optimization">
+<span id="chidb-assignment-opt"></span><h1>Assignment IV: Query Optimization<a class="headerlink" href="assignment_opt.html#assignment-iv-query-optimization" title="Link to this heading">¶</a></h1>
+<p>In this assignment, you will complete two tasks related to the optimization
+of SQL queries: pushing sigmas and supporting indexes.</p>
+<section id="pushing-sigmas">
+<h2>Pushing Sigmas<a class="headerlink" href="assignment_opt.html#pushing-sigmas" title="Link to this heading">¶</a></h2>
+<p>This part of project 4 does not entail code generation, only manipulation
+of internal code representation during the optimization phase. Until this
+point, the optimizer (see <code class="docutils literal notranslate"><span class="pre">optimizer.c</span></code> and <code class="docutils literal notranslate"><span class="pre">api.c</span></code>) performed a null
+optimization (i.e., did nothing) on all SQL queries compiled at the shell.</p>
+<p>For project 4, the shell will have been augmented with a <code class="docutils literal notranslate"><span class="pre">.opt</span></code> command that
+is reminiscent of the <code class="docutils literal notranslate"><span class="pre">.parse</span></code> command. To use <code class="docutils literal notranslate"><span class="pre">.opt</span></code>, type a SQL statement in
+quotes; the shell will respond by printing the parsed statement both before
+and after optimization. It will not proceed from there to the code generation phase.</p>
+<p>When .opt is applied to a statement that is not subject to optimization, the
+same parse tree will appear twice, like so:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chidb&gt; .opt &quot;SELECT * FROM t;&quot;
+Project([*],
+        Table(t)
+)
+
+Project([*],
+        Table(t)
+)
+chidb&gt;
+</pre></div>
+</div>
+<p>However, given a statement the can be optimized, the results will show the results of that optimization like so:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chidb&gt; .opt &quot;SELECT * FROM t |&gt;&lt;| u WHERE t.a&gt;10;&quot;
+Project([*],
+        Select(t.a &gt; int 10,
+                NaturalJoin(
+                        Table(t),
+                        Table(u)
+                )
+        )
+)
+
+Project([*],
+        NaturalJoin(
+                Select(t.a &gt; int 10,
+                        Table(t)
+                ),
+                Table(u)
+        )
+)
+chidb&gt;
+</pre></div>
+</div>
+<p>Pushing sigmas means that sigmas are pushed as low in the table as possible, and specifically below natural joins.</p>
+<p>You are responsible for pushing sigmas in queries where this form appears, either as all or part of the query:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>SELECT [fields]
+FROM   t1 NATURAL JOIN t2
+WHERE  [cmp] AND ... AND [cmp];
+</pre></div>
+</div>
+<p>where cmp is of the form <code class="docutils literal notranslate"><span class="pre">[val-or-col]</span> <span class="pre">[oper]</span> <span class="pre">[val-or-col]</span></code>, and <code class="docutils literal notranslate"><span class="pre">oper</span></code> is either &gt;, &lt;, &lt;=, &gt;=, or =. The “as all or part of the query” clause refers to the fact that this expression form might appear embedded in another form; for example, as part of a UNION, in which case you should still push its sigmas.</p>
+<p>Please note that</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>SELECT *
+FROM  t1 NATURAL JOIN t2
+WHERE t1.a &lt; t2.b;
+</pre></div>
+</div>
+<p>is of the pushing-sigmas form, but contains no sigmas that can be pushed.</p>
+</section>
+<section id="supporting-indexes">
+<h2>Supporting Indexes<a class="headerlink" href="assignment_opt.html#supporting-indexes" title="Link to this heading">¶</a></h2>
+<p>Modify your implementation so that it supports indexes in the following ways:</p>
+<ol class="arabic">
+<li><p>Support index creation through statements of the following form:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>chidb&gt; CREATE INDEX i ON t(j);
+</pre></div>
+</div>
+<p>This statement should create a new index B-tree, insert the corresponding row into the schema table, and populate the index with entries relating to the current instance of the indexed table. For simplicity, you may assume that the indexed field, j, is a unique integer field, whether or not the values are actually unique in the table instance, and whether or not the column is qualified as a <code class="docutils literal notranslate"><span class="pre">UNIQUE</span></code> one. In other words, the index you build must be correct and complete when the values in the indexed field are pairwise distinct; otherwise the index-building behavior is undefined.</p>
+</li>
+<li><p>Update indexes whenever an indexed item is inserted by an <code class="docutils literal notranslate"><span class="pre">INSERT</span> <span class="pre">INTO</span></code>.</p></li>
+<li><p>Compile certain queries to make use of index searches where possible. These queries should be of the form</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>SELECT [fields]
+FROM [table]
+WHERE [test-on-index];
+</pre></div>
+</div>
+<p>In these cases, <code class="docutils literal notranslate"><span class="pre">[test-on-index]</span></code> should be one of the following:</p>
+<div class="highlight-none notranslate"><div class="highlight"><pre><span></span>[indexed-col] = [val]
+[val] = [indexed-col]
+</pre></div>
+</div>
+</li>
+</ol>
+</section>
+</section>
+
+
+    </div>
+    
+    <div class="row">
+    <div class="col-md-12">
+<nav class="related">
+  <ul class="pager">
+    <li class="previous">
+    <a href="assignment_codegen.html" title="Previous Chapter: Assignment III: Code Generation"><span class="glyphicon glyphicon-chevron-left visible-sm"></span><span class="hidden-sm hidden-tablet">&laquo; Assignment III: Code Generation</span>
+    </a>
+    </li>
+    <li class="next">
+    <a href="testing.html" title="Next Chapter: Testing your Implementation"><span class="glyphicon glyphicon-chevron-right visible-sm"></span><span class="hidden-sm hidden-tablet">Testing your Implementation &raquo;</span>
+    </a>
+    </li>
+  </ul>
+</nav>
+    </div>
+    </div>
+
+  </div>
+</div>
+<footer class="footer">
+  <div class="container">
+    <p class="pull-right">
+      <a href="assignment_opt.html#">Back to top</a>
+      
+    </p>
+    <p>
+        &copy; Copyright 2010-2022, The University of Chicago.<br/>
+      Created using <a href="http://sphinx-doc.org/">Sphinx</a> 7.2.6.<br/>
+    </p>
+  </div>
+</footer>
+  </body>
+</html>

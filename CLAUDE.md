@@ -26,9 +26,9 @@ column silently built a corrupt index instead of erroring. See
 `docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. the remaining gaps
 (equality-only index use, 3-way joins, and a few others), `changes.txt` for the project's full
 history back to its 2009 origin, and `docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode
-spec pulled from chi.cs.uchicago.edu/chidb (not shipped in this repo, and not reachable via HTTPS
-from this sandbox — fetched over plain HTTP with `curl` + `w3m -dump`). Small runnable examples are
-under `demos/`.
+spec pulled from chi.cs.uchicago.edu/chidb. The full site (not shipped upstream, and not reachable
+via HTTPS from this sandbox — mirrored over plain HTTP) is available offline under
+`docs/chidb-website/`, see its `README.md`. Small runnable examples are under `demos/`.
 Before assuming a SQL feature works or doesn't, check the plan file's "Not implemented" list first.
 
 ## Build
