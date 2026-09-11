@@ -1,0 +1,80 @@
+TOP=../..
+
+SYNCFLAGS=-md5sum_in_auxfile -less_marks -lang C
+
+VERSION=1
+DOC=Database
+
+# must be in the same order than the #include in $DOC.nw for syncweb to work
+SRC_ORIG=Database.nw Database_extra.nw
+
+SRC_VIEWS= \
+  $TOP/include/chidb/chidb.h\
+  $TOP/include/chidb/chisql.h\
+  $TOP/include/chidb/dbm-file.h\
+  $TOP/include/chidb/utils.h\
+  \
+  $TOP/include/chisql/chisql.h\
+  $TOP/include/chisql/column.h\
+  $TOP/include/chisql/common.h\
+  $TOP/include/chisql/condition.h\
+  $TOP/include/chisql/create.h\
+  $TOP/include/chisql/delete.h\
+  $TOP/include/chisql/expression.h\
+  $TOP/include/chisql/insert.h\
+  $TOP/include/chisql/literal.h\
+  $TOP/include/chisql/ra.h\
+  $TOP/include/chisql/sra.h\
+  \
+  $TOP/src/libchisql/sql.l\
+  $TOP/src/libchisql/sql.y\
+  $TOP/src/libchisql/column.c\
+  $TOP/src/libchisql/common.c\
+  $TOP/src/libchisql/condition.c\
+  $TOP/src/libchisql/create.c\
+  $TOP/src/libchisql/delete.c\
+  $TOP/src/libchisql/expression.c\
+  $TOP/src/libchisql/insert.c\
+  $TOP/src/libchisql/literal.c\
+  $TOP/src/libchisql/ra.c\
+  $TOP/src/libchisql/row.c\
+  $TOP/src/libchisql/row.h\
+  $TOP/src/libchisql/sra.c\
+  \
+  $TOP/src/libchidb/chidbInt.h\
+  $TOP/src/libchidb/api.c\
+  $TOP/src/libchidb/util.c\
+  $TOP/src/libchidb/util.h\
+  $TOP/src/libchidb/optimizer.c\
+  $TOP/src/libchidb/codegen.c\
+  $TOP/src/libchidb/dbm.c\
+  $TOP/src/libchidb/dbm.h\
+  $TOP/src/libchidb/dbm-types.h\
+  $TOP/src/libchidb/dbm-ops.c\
+  $TOP/src/libchidb/dbm-cursor.c\
+  $TOP/src/libchidb/dbm-cursor.h\
+  $TOP/src/libchidb/dbm-file.c\
+  $TOP/src/libchidb/dbm-file.h\
+  $TOP/src/libchidb/record.c\
+  $TOP/src/libchidb/record.h\
+  $TOP/src/libchidb/btree.c\
+  $TOP/src/libchidb/btree.h\
+  $TOP/src/libchidb/pager.c\
+  $TOP/src/libchidb/pager.h\
+  \
+  $TOP/src/shell/main.c\
+  $TOP/src/shell/shell.c\
+  $TOP/src/shell/shell.h\
+  $TOP/src/shell/commands.c\
+  $TOP/src/shell/commands.h\
+
+# not (yet?) lpized:
+#  - libs/simclist, libs/check, libs/logs: vendored/support code, not chidb-specific
+#  - tests/: exercised via the code above, not walked as its own narrative
+
+<$TOP/docs/latex/mkcommon
+
+index:V:
+	$INDEXER -lang c $TOP/src $TOP/include \
+    | grep -v 'libs/' \
+    > defs_and_uses.list

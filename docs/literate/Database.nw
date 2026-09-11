@@ -1,0 +1,361 @@
+\documentclass[12pt]{report}
+%alt: 12pt, twocolumn, landscape
+%coupling: see Config.tex
+
+%last:
+% - just the skeleton for now; real content comes from lpizer + hand editing
+
+\input{../latex/Packages}
+\input{Noweb}
+\input{../latex/Config}
+\input{../latex/Macros}
+
+%******************************************************************************
+% Prelude
+%******************************************************************************
+
+%------------------------------------------------------------------------------
+%history:
+%------------------------------------------------------------------------------
+
+%history LP-ization:
+% - skeleton, mostly copy paste of principia's Template.nw skeleton
+% - TODO put all content of files in Database_extra.nw, via 'syncweb -lpize'
+% - TODO read Database_extra.nw, identify concepts, refine this TOC
+% - TODO distribute parts of Database_extra.nw in the chapters below
+% - TODO understand chidb_stmt_codegen/chidb_stmt_optimize, LP split, cluster
+% - TODO LP split the DBM opcode handlers in dbm-ops.c, one chunk per opcode
+% - TODO add figures (B-Tree page layout, DBM bytecode pipeline diagram)
+
+%------------------------------------------------------------------------------
+% Config
+%------------------------------------------------------------------------------
+\allcodefalse
+% ifallcode is used for:
+%  - forward decl, func decl, extern decl, #ifdef, pragmas (stuff in Extra.nw)
+
+%******************************************************************************
+% Title
+%******************************************************************************
+
+\begin{document}
+
+\title{
+{\Huge
+Principia Softwarica: The Database [[chidb]]
+}\\
+{version 0.1}
+}
+
+\author{
+Yoann Padioleau\\
+\texttt{yoann.padioleau@gmail.com}\\
+\\
+with code from\\
+The University of Chicago (CMSC 23500)
+}
+
+\maketitle
+
+\hrule
+\input{../latex/Copyright}
+\hrule
+
+\begingroup
+\hypersetup{linkcolor=blue}
+\tableofcontents
+\endgroup
+
+%******************************************************************************
+% Body
+%******************************************************************************
+
+%******************************************************************************
+\chapter{Introduction}
+%******************************************************************************
+
+\section{Motivations}
+
+%claude:
+The goal of this book is to present with full details the source code of
+a small but complete relational database management system, so that the
+reader can see how a SQL query actually turns into bytes read from and
+written to a file on disk.
+
+Here are a few questions I hope this book will answer:
+\begin{itemize}
+\item How does a SQL query get parsed into an abstract syntax tree,
+  and how does that tree get compiled into something executable?
+\item What does the executable form of a query actually look like?
+  What is a database virtual machine and why use bytecode at all,
+  rather than interpreting the query tree directly?
+\item How are rows and indexes actually laid out on disk, and how
+  does the B-Tree layer make lookups, range scans, and insertions
+  efficient?
+\item How does a query optimizer decide when it is safe to use an
+  index instead of a full table scan?
+\end{itemize}
+
+\section{[[chidb]]}
+
+%claude:
+I chose [[chidb]] for this book because, unlike a production database
+like SQLite or Postgres, it was designed from the start to be read and
+extended by students: the SQL front end, pager, and B-Tree layer are
+given, and the reader (originally a student in a course) implements the
+database virtual machine, the query optimizer, and the bytecode
+generator. That makes it a rare thing: a real, working RDBMS small
+enough to fully explain in one book, whose layering mirrors SQLite's
+closely enough that lessons here transfer directly.
+
+\section{Other databases considered}
+
+%claude:
+SQLite itself was the obvious alternative, but its production-grade
+optimizations (WAL mode, a cost-based query planner, generated VDBE
+opcodes) would have made for a much longer, less didactic book.
+[[chidb]] keeps the same architecture --- SQL text to AST to bytecode
+to B-Tree to pager to file --- at a scale a single chapter set can
+cover completely.
+
+\section{Getting started}
+
+\section{Requirements}
+
+\section{About this document}
+
+%claude:
+This document is a {\em literate program}. It derives from a set of
+files processed by \texttt{syncweb}, generating either this book or the
+actual source code of the program. The code and its documentation are
+thus strongly connected: editing a code chunk here and re-synchronizing
+updates the real \texttt{.c}/\texttt{.h} files, and vice versa.
+
+\section{Copyright}
+
+%claude:
+Most of the source code presented in this document is [[chidb]] itself,
+Copyright \copyright{} 2009--2015 The University of Chicago, released
+under a BSD-style license (see \f{COPYING} in the [[chidb]] repository).
+The prose is mine and is licensed under the \license.
+
+\section{Acknowledgments}
+
+%******************************************************************************
+\chapter{Overview}
+%******************************************************************************
+
+\section{Architecture}
+
+%claude:
+[[chidb]] mirrors SQLite's layered design. Data flows top-to-bottom
+through these layers, each aware only of the one below it: SQL text is
+parsed into a [[chisql]] AST, optionally rewritten by the query
+optimizer, compiled by the code generator into DBM bytecode, executed
+by the database virtual machine against table/index cursors, which read
+and write pages through B-Trees, which in turn read and write pages
+through the pager, which reads and writes the [[chidb]] file itself.
+
+\section{The [[chidb]] file format}
+
+\section{Code organization}
+
+%###############################################################################
+
+%******************************************************************************
+\chapter{Core Data Structures}
+%******************************************************************************
+
+%claude:
+This chapter introduces, in one place, the key types that flow through
+every layer described in the Overview: the [[chisql]] AST produced by
+the parser, the [[chidb_dbm_op_t]] bytecode instruction the code
+generator emits, the in-memory schema the API keeps around, and the
+on-disk B-Tree/page structures the bottom two layers manipulate. The
+chapters that follow each revisit the subset of these types relevant
+to that layer's logic.
+
+\section{The [[chisql]] AST}
+
+%claude:
+Statements, tables, columns, conditions, and literals, as produced by
+[[sql.y]] and consumed by the optimizer and code generator; see
+[[include/chisql/*.h]].
+
+\section{DBM bytecode: [[chidb_dbm_op_t]]}
+
+%claude:
+One opcode, three integer arguments, and a string argument --- the
+single instruction shape every DBM program is built out of; see
+[[dbm-types.h]].
+
+\section{The in-memory schema}
+
+%claude:
+[[chidb_schema_item_t]], loaded from the page-1 schema table on
+[[chidb_open]] and refreshed after every [[CREATE TABLE]]/[[CREATE
+INDEX]], is how the optimizer and code generator resolve table/column
+names to root pages without re-walking the B-Tree.
+
+\section{B-Tree pages and cursors}
+
+%claude:
+The on-disk node layout B-Trees read and write, and the
+[[chidb_dbm_cursor_t]] table/index cursors that opcodes like [[Next]]
+and [[Seek*]] drive.
+
+%******************************************************************************
+\chapter{[[main()]]}
+%******************************************************************************
+
+%claude:
+Unlike a compiler or a shell, [[chidb]] has no single natural
+``main'': it is a library, and its real entry points are the public
+API in [[chidb.h]] --- [[chidb_open]], [[chidb_prepare]],
+[[chidb_step]], [[chidb_finalize]], [[chidb_close]] --- which
+[[src/shell/main.c]] and its REPL loop call in sequence. This chapter
+walks that sequence once, end to end, before the following chapters
+each dive into one layer of it.
+
+\section{[[chidb_open]] and [[chidb_close]]}
+
+\section{[[chidb_prepare]]: optimize then codegen}
+
+\section{[[chidb_step]] and [[chidb_finalize]]}
+
+%******************************************************************************
+\chapter{The SQL front end: [[chisql]]}
+%******************************************************************************
+
+%claude:
+[[chisql]] is the library that turns SQL text into an in-memory AST:
+a flex/bison grammar producing the statement, table, column, condition,
+and literal types the rest of the pipeline consumes.
+
+%******************************************************************************
+\chapter{The query optimizer}
+%******************************************************************************
+
+%claude:
+[[chidb_stmt_optimize]] rewrites a parsed statement before code
+generation, most notably pushing single-table conditions down next to
+the table they filter (``sigma-pushing'') so that the code generator
+can turn them into index seeks instead of full scans.
+
+%******************************************************************************
+\chapter{Code generation}
+%******************************************************************************
+
+%claude:
+[[chidb_stmt_codegen]] compiles an (optimized) statement into an array
+of DBM bytecode instructions: one sequence of opcodes per statement
+kind (CREATE TABLE, CREATE INDEX, INSERT, SELECT, ...), with indexed
+columns compiling to seeks and unindexed ones to scans with a filter.
+
+%******************************************************************************
+\chapter{The database virtual machine}
+%******************************************************************************
+
+%claude:
+The DBM executes bytecode with a classic fetch-decode-execute loop; one
+function per opcode handles the actual work (comparisons, cursor
+movement, row assembly, ...) against table/index cursors.
+
+%******************************************************************************
+\chapter{B-Trees}
+%******************************************************************************
+
+%claude:
+The B-Tree layer implements the on-disk B-Trees --- one per table or
+index --- that back every cursor operation: find, insert, split, and
+the traversal that a full scan or a range seek walks.
+
+%******************************************************************************
+\chapter{The pager}
+%******************************************************************************
+
+%claude:
+The pager is the bottom of the stack: it turns page numbers into reads
+and writes against the [[chidb]] file, and is the only layer that
+touches the file directly.
+
+%******************************************************************************
+\chapter{The interactive shell}
+%******************************************************************************
+
+%claude:
+The [[chidb]] shell is a small REPL built on top of the public
+[[chidb_open]]/[[chidb_prepare]]/[[chidb_step]]/[[chidb_finalize]] API,
+useful both as a demo and as a way to inspect compiled bytecode with
+its \texttt{.explain} command.
+
+%******************************************************************************
+\chapter{Advanced Topics}
+%******************************************************************************
+
+%******************************************************************************
+\chapter{Conclusion}
+%******************************************************************************
+
+%claude:
+You now know how [[chidb]] works: how a SQL query becomes an AST, how
+the optimizer and code generator turn that AST into DBM bytecode, and
+how that bytecode drives B-Trees and a pager to read and write an
+actual file on disk.
+
+\appendix
+
+%###############################################################################
+
+%******************************************************************************
+\chapter{Debugging techniques}
+%******************************************************************************
+
+%******************************************************************************
+\chapter{Extra Code}
+%******************************************************************************
+
+\ifallcode
+#include "Database_extra.nw"
+\fi
+
+%******************************************************************************
+\chapter{Changelog}
+%******************************************************************************
+\label{sec:changelog}
+
+%******************************************************************************
+\chapter{Glossary}
+%******************************************************************************
+\label{sec:glossary}
+
+\chapter*{Indexes}
+\addcontentsline{toc}{section}{Index}
+
+\addcontentsline{toc}{section}{References}
+
+\begin{thebibliography}{99}
+
+\bibitem[1]{wp-literate-programming} Donald Knuth,
+{\em Literate Programming},
+\url{http://en.wikipedia.org/wiki/Literate\_Program}
+
+\bibitem[2]{noweb} Norman Ramsey,
+{\em Noweb},
+\url{http://www.cs.tufts.edu/~nr/noweb/}
+
+\bibitem[3]{syncweb} Yoann Padioleau,
+{\em Syncweb, literate programming meets unison},
+\url{http://padator.org/software/project-syncweb/readme.txt}
+
+\bibitem[4]{chidb} The University of Chicago,
+{\em chidb},
+\url{https://chi.cs.uchicago.edu/chidb/}
+
+\end{thebibliography}
+
+%******************************************************************************
+% Postlude
+%******************************************************************************
+
+\end{document}
