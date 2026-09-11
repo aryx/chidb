@@ -11,16 +11,16 @@ code generator themselves. This fork (`aryx/chidb`, remote `origin`) tracks upst
 from other contributors.
 
 **Status (2026-09-11): the course-assignment stubs have been implemented** —
-`btree.c`, `dbm-cursor.[ch]`, `dbm-ops.c`, `codegen.c` (CREATE TABLE/INDEX, INSERT, single-table
-SELECT with an optional WHERE) all have real implementations now, `optimizer.c` is left as the
-original correct no-op pass-through, and `make check` is green (5/5 suites). NATURAL JOIN and
-index-based query optimization (sigma-pushing, using an index for a `WHERE indexedcol = val`
-lookup) are NOT implemented. See `docs/claude_notes/plan_chidb_implementation.md` for exactly
-what's done vs. not, and `docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode spec pulled
-from chi.cs.uchicago.edu/chidb (not shipped in this repo, and not reachable via HTTPS from this
-sandbox — fetched over plain HTTP with `curl` + `w3m -dump`). Small runnable examples are under
-`demos/`. Before assuming a SQL feature works or doesn't, check the plan file's "Not implemented"
-list first.
+`btree.c`, `dbm-cursor.[ch]`, `dbm-ops.c`, `codegen.c` (CREATE TABLE, CREATE INDEX with population,
+INSERT with index maintenance, single-table SELECT with an optional WHERE — compiled to an index
+seek instead of a full scan when the WHERE is an equality test on an indexed column) all have real
+implementations now, `optimizer.c` is left as the original correct no-op pass-through, and
+`make check` is green (5/5 suites). NATURAL JOIN and sigma-pushing are NOT implemented. See
+`docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. not, and
+`docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode spec pulled from
+chi.cs.uchicago.edu/chidb (not shipped in this repo, and not reachable via HTTPS from this sandbox
+— fetched over plain HTTP with `curl` + `w3m -dump`). Small runnable examples are under `demos/`.
+Before assuming a SQL feature works or doesn't, check the plan file's "Not implemented" list first.
 
 ## Build
 

@@ -47,11 +47,15 @@
 #include "util.h"
 
 /* claude: covers assignment_codegen.html steps 1-4 (schema loading is in
- * util.c/api.c) plus CREATE INDEX + index population from assignment_opt.html.
- * NOT implemented: NATURAL JOIN (step 5) and index-based SELECT lookups
- * (the other half of assignment_opt.html) -- see
+ * util.c/api.c) plus all of assignment_opt.html's "Supporting Indexes"
+ * section: CREATE INDEX + population, keeping indexes up to date on
+ * INSERT, and compiling `indexed-col = val` / `val = indexed-col` WHERE
+ * clauses into an index seek instead of a full scan.
+ * NOT implemented: NATURAL JOIN (assignment_codegen.html step 5) and
+ * sigma-pushing (the other half of assignment_opt.html, which only
+ * matters once joins exist) -- see
  * docs/claude_notes/plan_chidb_implementation.md. Every SELECT here is a
- * single-table scan with at most one `column OP literal` WHERE clause. */
+ * single-table query with at most one `column OP literal` WHERE clause. */
 
 /* Emits `opcode p1 p2 p3 p4` at *pc, then advances *pc; returns the
  * address the instruction was placed at (handy for later patching a
@@ -97,6 +101,15 @@ static bool column_is_primary_key(Column_t *columns, int index)
             return false;
         }
     return false;
+}
+
+static const char *column_name_at(Column_t *columns, int index)
+{
+    int i = 0;
+    for (Column_t *c = columns; c; c = c->next, i++)
+        if (i == index)
+            return c->name;
+    return NULL;
 }
 
 static int primary_key_index(Column_t *columns)
@@ -243,7 +256,9 @@ static int codegen_create_index(chidb_stmt *stmt, Index_t *index, const char *sq
 /* claude: register layout mirrors tests/files/dbm-programs/insert/insert-1.dbmf:
  * r0=table root, r1=key (the PK value), r2..r(2+ncols-1)=one register per
  * column (Null for the PK's own slot, the literal for every other one),
- * r(2+ncols)=packed record. */
+ * r(2+ncols)=packed record, and (assignment_opt.html point 2) one more
+ * register + cursor per index on this table, from r(3+ncols)/cursor 1
+ * onward, to keep each of them up to date with the new row. */
 static int codegen_insert(chidb_stmt *stmt, Insert_t *insert)
 {
     chidb *db = stmt->db;
@@ -300,6 +315,31 @@ static int codegen_insert(chidb_stmt *stmt, Insert_t *insert)
     int r_record = 2 + ncols;
     emit(stmt, &pc, Op_MakeRecord, 2, ncols, r_record, NULL);
     emit(stmt, &pc, Op_Insert, 0, r_record, 1, NULL);
+
+    int next_reg = r_record + 1;
+    int cursor_num = 1;
+    for (chidb_schema_item_t *item = db->schema; item; item = item->next)
+    {
+        if (strcmp(item->type, "index") != 0 || strcasecmp(item->table_name, insert->table_name) != 0)
+            continue;
+
+        chisql_statement_t *idx_parsed;
+        chisql_parser(item->sql, &idx_parsed);
+        int idx_col_idx = column_index_by_name(columns, idx_parsed->stmt.create->index->column_name, NULL);
+        free(idx_parsed);
+        if (idx_col_idx < 0)
+            continue; /* shouldn't happen: schema is internally consistent */
+
+        int r_idxroot = next_reg++;
+        int r_idxkey = (idx_col_idx == pk_idx) ? 1 : (2 + idx_col_idx);
+
+        emit(stmt, &pc, Op_Integer, (int32_t) item->root_page, r_idxroot, 0, NULL);
+        emit(stmt, &pc, Op_OpenWrite, cursor_num, r_idxroot, 0, NULL);
+        emit(stmt, &pc, Op_IdxInsert, cursor_num, r_idxkey, 1, NULL);
+        emit(stmt, &pc, Op_Close, cursor_num, 0, 0, NULL);
+        cursor_num++;
+    }
+
     emit(stmt, &pc, Op_Close, 0, 0, 0, NULL);
     emit(stmt, &pc, Op_Halt, 0, 0, 0, NULL);
 
@@ -310,6 +350,78 @@ static int codegen_insert(chidb_stmt *stmt, Insert_t *insert)
 
 
 /* --- SELECT ------------------------------------------------------------ */
+
+/* Shared by both codegen_select's full-scan path and its index-seek path:
+ * emit one Key/Column op per projected column (reading through `cursor`,
+ * which must already be positioned) into r_out0..r_out0+nout-1, followed
+ * by the ResultRow that reports them. */
+static void emit_output_columns(chidb_stmt *stmt, int *pc, int32_t cursor, Column_t *columns,
+                                 int *out_idx, int nout, int32_t r_out0)
+{
+    for (int i = 0; i < nout; i++)
+    {
+        if (column_is_primary_key(columns, out_idx[i]))
+            emit(stmt, pc, Op_Key, cursor, r_out0 + i, 0, NULL);
+        else
+            emit(stmt, pc, Op_Column, cursor, out_idx[i], r_out0 + i, NULL);
+    }
+    emit(stmt, pc, Op_ResultRow, r_out0, nout, 0, NULL);
+}
+
+static void set_output_columns(chidb_stmt *stmt, Column_t *columns, int *out_idx, int nout)
+{
+    stmt->nCols = nout;
+    /* claude: chidb_stmt_exec() asserts nRR==nCols after every run, including
+     * a run that ends at Halt without ever executing ResultRow (a query
+     * that legitimately matches zero rows) -- pre-set nRR here so that
+     * case holds trivially; a real ResultRow later sets it to the same
+     * value anyway, since its P2 is always this same `nout`. */
+    stmt->nRR = nout;
+    stmt->cols = malloc(sizeof(char *) * nout);
+    for (int j = 0; j < nout; j++)
+        stmt->cols[j] = strdup(column_name_at(columns, out_idx[j]));
+}
+
+/* claude: assignment_opt.html point 3. Compiles `WHERE indexed-col = val`
+ * (or `val = indexed-col`) into an index seek instead of a full table
+ * scan: seek the index cursor to the (unique) IdxKey, recover the row's
+ * PKey, then seek the table cursor straight to that PKey. No loop at all,
+ * since the index is assumed unique (same assumption CREATE INDEX itself
+ * makes). Two independent early-exit points, each closing only the
+ * cursor(s) actually open at that point: an index miss skips opening the
+ * table cursor entirely; the table seek "missing" (shouldn't happen, since
+ * the PKey just came out of the index) still closes both. */
+static int codegen_select_indexed(chidb_stmt *stmt, chidb_schema_item_t *tbl, chidb_schema_item_t *idx,
+                                   Column_t *columns, int *out_idx, int nout, Literal_t *where_lit)
+{
+    int r_idxroot = 0, r_lit = 1, r_pkey = 2, r_tblroot = 3, r_out0 = 4;
+
+    int pc = 0;
+    emit(stmt, &pc, Op_Integer, (int32_t) idx->root_page, r_idxroot, 0, NULL);
+    emit(stmt, &pc, Op_OpenRead, 0, r_idxroot, 0, NULL);
+    emit_literal(stmt, &pc, where_lit, r_lit);
+    int addr_seek_idx = emit(stmt, &pc, Op_Seek, 0, -1, r_lit, NULL);
+    emit(stmt, &pc, Op_IdxPKey, 0, r_pkey, 0, NULL);
+
+    emit(stmt, &pc, Op_Integer, (int32_t) tbl->root_page, r_tblroot, 0, NULL);
+    emit(stmt, &pc, Op_OpenRead, 1, r_tblroot, column_count(columns), NULL);
+    int addr_seek_tbl = emit(stmt, &pc, Op_Seek, 1, -1, r_pkey, NULL);
+
+    emit_output_columns(stmt, &pc, 1, columns, out_idx, nout, r_out0);
+
+    int addr_close1 = pc;
+    emit(stmt, &pc, Op_Close, 1, 0, 0, NULL);
+    stmt->ops[addr_seek_tbl].p2 = addr_close1;
+
+    int addr_close0 = pc;
+    emit(stmt, &pc, Op_Close, 0, 0, 0, NULL);
+    stmt->ops[addr_seek_idx].p2 = addr_close0;
+
+    emit(stmt, &pc, Op_Halt, 0, 0, 0, NULL);
+
+    set_output_columns(stmt, columns, out_idx, nout);
+    return CHIDB_OK;
+}
 
 /* claude: register layout mirrors testing.html's worked example
  * (`SELECT * FROM courses`): r0=table root, r1..r(nout)=output columns
@@ -391,6 +503,7 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
     }
 
     bool has_where = false;
+    bool where_is_eq = false;
     int where_col_idx = -1;
     opcode_t where_op = Op_Ne;
     Literal_t *where_lit = NULL;
@@ -454,6 +567,7 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
             default: break;
             }
 
+        where_is_eq = (ct == RA_COND_EQ);
         switch (ct)
         {
         case RA_COND_EQ:  where_op = Op_Ne; break;
@@ -464,6 +578,20 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
         default: break;
         }
         has_where = true;
+    }
+
+    /* assignment_opt.html point 3: `indexed-col = val` / `val = indexed-col`
+     * compiles to an index seek instead of a full scan. */
+    if (has_where && where_is_eq)
+    {
+        chidb_schema_item_t *idx = chidb_schema_find_index_on(db, table_name, column_name_at(columns, where_col_idx));
+        if (idx)
+        {
+            int rc = codegen_select_indexed(stmt, tbl, idx, columns, out_idx, nout, where_lit);
+            free(out_idx);
+            free(parsed);
+            return rc;
+        }
     }
 
     bool where_col_is_pk = has_where && column_is_primary_key(columns, where_col_idx);
@@ -493,14 +621,7 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
         addr_skip = emit(stmt, &pc, where_op, r_lit, -1, r_col, NULL);
     }
 
-    for (int i = 0; i < nout; i++)
-    {
-        if (column_is_primary_key(columns, out_idx[i]))
-            emit(stmt, &pc, Op_Key, 0, r_out0 + i, 0, NULL);
-        else
-            emit(stmt, &pc, Op_Column, 0, out_idx[i], r_out0 + i, NULL);
-    }
-    emit(stmt, &pc, Op_ResultRow, r_out0, nout, 0, NULL);
+    emit_output_columns(stmt, &pc, 0, columns, out_idx, nout, r_out0);
 
     int addr_next = emit(stmt, &pc, Op_Next, 0, addr_loop, 0, NULL);
     if (has_where)
@@ -512,21 +633,7 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
     emit(stmt, &pc, Op_Close, 0, 0, 0, NULL);
     emit(stmt, &pc, Op_Halt, 0, 0, 0, NULL);
 
-    stmt->nCols = nout;
-    /* claude: chidb_stmt_exec() asserts nRR==nCols after every run, including
-     * a run that ends at Halt without ever executing ResultRow (a query
-     * that legitimately matches zero rows) -- pre-set nRR here so that
-     * case holds trivially; a real ResultRow later sets it to the same
-     * value anyway, since its P2 is always this same `nout`. */
-    stmt->nRR = nout;
-    stmt->cols = malloc(sizeof(char *) * nout);
-    for (int j = 0; j < nout; j++)
-    {
-        int i = 0;
-        for (Column_t *c = columns; c; c = c->next, i++)
-            if (i == out_idx[j])
-                stmt->cols[j] = strdup(c->name);
-    }
+    set_output_columns(stmt, columns, out_idx, nout);
 
     free(out_idx);
     free(parsed);

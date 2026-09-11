@@ -15,6 +15,6 @@ repository root `CLAUDE.md` for build instructions):
 
 Known gaps that don't show up in this demo (see
 [`../docs/claude_notes/plan_chidb_implementation.md`](../docs/claude_notes/plan_chidb_implementation.md)
-for the full picture): no `NATURAL JOIN`, and `CREATE INDEX` builds and populates an index but
-nothing yet compiles a `WHERE indexedcol = val` query to actually use it (every `SELECT` is a full
-table scan in primary-key order, regardless of any index).
+for the full picture): no `NATURAL JOIN`, and only a single top-level `WHERE indexedcol = val` (or
+`val = indexedcol`) equality test compiles to an index seek — anything else (`>`, an indexed column
+ANDed with another condition, etc.) still falls back to a full table scan in primary-key order.

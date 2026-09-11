@@ -61,11 +61,14 @@ the exact file-header byte layout reverse-engineered from
 cursor), `dbm-ops.c` (all 37 opcodes), schema loading (`chidbInt.h`'s
 `chidb_schema_item_t`, `util.c`'s `chidb_schema_*`, wired into
 `api.c`'s `chidb_open`/`chidb_step`), and `codegen.c` (CREATE TABLE,
-CREATE INDEX + index population, INSERT, single-table SELECT with an
-optional single `column OP literal` WHERE). `optimizer.c` left as the
-original correct no-op pass-through (still safe: codegen never retains
-the `sql_stmt` pointer past the call, so the shallow-copy-then-free in
-`chidb_prepare` doesn't dangle).
+CREATE INDEX + index population, INSERT with index maintenance,
+single-table SELECT with an optional single `column OP literal` WHERE,
+compiled to an index seek instead of a full scan whenever the WHERE is an
+equality test on an indexed column -- all of assignment_opt.html's
+"Supporting Indexes" section). `optimizer.c` left as the original correct
+no-op pass-through (still safe: codegen never retains the `sql_stmt`
+pointer past the call, so the shallow-copy-then-free in `chidb_prepare`
+doesn't dangle).
 
 `make check`: 5/5 suites, 105/105 DBMF cases, all green. Manually verified
 past that: CREATE TABLE / INSERT / SELECT (with and without WHERE) /
@@ -77,11 +80,16 @@ resumed):
 - NATURAL JOIN (assignment_codegen.html step 5) -- `codegen_select`
   rejects any `SRA_t` shape other than a bare table under the optional
   `SRA_SELECT`, returning `CHIDB_EINVALIDSQL`.
-- Sigma-pushing / index-based SELECT codegen (assignment_opt.html) --
-  indexes are created and populated, and `chidb_schema_find_index_on()`
-  (util.c) exists for a future optimizer to use, but nothing currently
-  calls it to compile a `WHERE indexedcol = val` into an index seek
-  instead of a full table scan.
+- Sigma-pushing (assignment_opt.html's other optimization, which only
+  matters once joins exist -- pushing a `WHERE` below a `NaturalJoin`
+  isn't meaningful without NATURAL JOIN support).
+- Index-based SELECT codegen for anything other than a top-level equality
+  test (`indexed-col = val` / `val = indexed-col`) -- e.g. `WHERE
+  indexedcol > val` still does a full scan, and only one WHERE clause is
+  ever supported at all (see codegen_select's file-header comment), so a
+  query with an indexable equality ANDed with something else won't use
+  the index either. `codegen_select_indexed()` in codegen.c is the place
+  to extend this if it comes up.
 - Cursors are O(n) space / not amortized O(1) Next (see dbm-cursor.h) --
   explicitly sanctioned as a first-pass approximation by
   assignment_dbm.html step 3, correct but not the bonus-credit shape.
