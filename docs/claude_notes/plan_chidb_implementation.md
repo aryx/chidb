@@ -60,16 +60,53 @@ the exact file-header byte layout reverse-engineered from
 `tests/check_btree_1b.c`), `dbm-cursor.[ch]` (materialize-the-whole-BTree
 cursor), `dbm-ops.c` (all 37 opcodes), schema loading (`chidbInt.h`'s
 `chidb_schema_item_t`, `util.c`'s `chidb_schema_*`, wired into
-`api.c`'s `chidb_open`/`chidb_step`), and `codegen.c` (CREATE TABLE,
-CREATE INDEX + index population, INSERT with index maintenance,
-single-table SELECT with an optional single `column OP literal` WHERE
-compiled to an index seek whenever it's an equality test on an indexed
-column -- all of assignment_opt.html's "Supporting Indexes" section --
-and two-way NATURAL JOIN with qualified/unqualified column names,
-assignment_codegen.html step 5). `optimizer.c` left as the original
-correct no-op pass-through (still safe: codegen never retains the
-`sql_stmt` pointer past the call, so the shallow-copy-then-free in
-`chidb_prepare` doesn't dangle).
+`api.c`'s `chidb_open`/`chidb_step`), `codegen.c` (CREATE TABLE, CREATE
+INDEX + index population, INSERT with index maintenance, single-table
+SELECT and two-way NATURAL JOIN each with a full conjunction of `column
+OP literal` WHERE clauses -- see below), and `optimizer.c` (sigma-pushing
+for NATURAL JOIN queries). All four assignments' core deliverables are
+now covered; see "Not implemented" below for the specific gaps that
+remain within each.
+
+Also fixed, since it turned out to matter for actually demonstrating
+sigma-pushing (`assignment_opt.html` specifies `.opt` as literally how
+it's meant to be observed): a pre-existing, unrelated buffer-overflow
+crash in `libchisql`'s `indent_print()` (`src/libchisql/common.c`) that
+made the shell's `.parse`/`.opt` commands abort on any real query. See
+that function's own `claude:` comment for the exact bug.
+
+### Sigma-pushing (`optimizer.c`)
+
+`chidb_stmt_optimize()` now does real work for the one shape
+`assignment_opt.html` describes: `Project(exprs, Select(cond,
+NaturalJoin(Table(t1), Table(t2))))`. It flattens `cond`'s top-level
+AND-chain, classifies each conjunct as touching only `t1`, only `t2`, or
+neither/both (a cross-table condition, a non-comparison, or an
+unqualified reference to the shared natural-join column itself -- always
+left at the top; misclassifying "ambiguous" as pushable would be a
+correctness bug, so this stays conservative on purpose), and rebuilds the
+tree with each single-table bucket wrapped in its own `Select` right next
+to that table, below the join. Verified against `assignment_opt.html`'s
+own worked `.opt` example (byte-for-byte structural match) and against
+real query results on a fixture with a left-only, a right-only, a
+both-pushed, and an ambiguous-stays-at-top condition, both before and
+after the rewrite. Every other statement shape (not a SELECT, no WHERE,
+single-table, a join that isn't two base tables) goes through unchanged,
+same as the original trivial pass-through.
+
+Since `chidb_stmt_optimize()` runs in front of *every* `chidb_prepare()`
+call, not just behind `.opt`, turning it on meant `codegen_select_join()`
+now has to accept a `NaturalJoin` whose sides are pre-wrapped in a
+`Select` (exactly the shape pushing produces) as ordinary input, and both
+it and the single-table `codegen_select()` had to generalize from "at
+most one WHERE condition" to "a full conjunction of `column OP literal`
+comparisons" (the "WHERE clauses" section near the top of codegen.c:
+`ResolvedCmp`/`resolve_conjuncts`/`emit_filter_checks`, shared by both).
+That generalization was a prerequisite for sigma-pushing, not an
+independent feature -- but it's also a strict superset of the
+single-condition behavior the assignments actually require, verified
+behavior-preserving by rerunning the full DBMF suite (all 111 cases,
+unchanged) before writing the optimizer itself.
 
 NATURAL JOIN has no upstream test suite (assignment_codegen.html: "Tests
 for NATURAL JOIN are not currently available") -- fixture built for this
@@ -79,34 +116,38 @@ unmatched row on each side to exercise the inner-join exclusion) plus six
 DBMF cases under `tests/files/dbm-programs/sql-select-join/` covering
 `*`, an explicit projection, qualified column names on both sides of
 WHERE, a zero-row WHERE, table aliases with a WHERE on the left table's
-primary key, and WHERE on the unqualified shared join column.
+primary key, and WHERE on the unqualified shared join column. (These
+predate sigma-pushing and don't exercise it directly -- pushing is
+transparent to query results by construction, so the manual `.opt` +
+result verification above is the real coverage for it.)
 
-`make check`: 5/5 suites, 105/105 DBMF cases, all green. Manually verified
-past that: CREATE TABLE / INSERT / SELECT (with and without WHERE) /
-CREATE INDEX + indexed lookup all work through the `chidb` shell on a
-freshly created file (see `demos/`).
+`make check`: 5/5 suites, 111/111 DBMF cases, all green -- with
+sigma-pushing live for every query, not just ones run through `.opt`.
 
 Not implemented (out of scope for this pass, in order of likely value if
 resumed):
-- Sigma-pushing (assignment_opt.html's other optimization: rewriting
-  `Select(cond, NaturalJoin(t1,t2))` into `NaturalJoin(Select(cond,t1),
-  t2)`). Doesn't matter for *correctness* here -- `codegen_select_join`
-  already evaluates the WHERE inside the join's inner loop, so a
-  selective WHERE on one side isn't paying to materialize the whole join
-  first regardless. What it would still buy: replacing that side's full
-  Rewind/Next scan with an index seek (see the next point) before even
-  entering the loop. Nothing currently does that.
-- Index-based codegen only covers the single-table case
-  (`codegen_select_indexed`) and only a top-level equality test
-  (`indexed-col = val` / `val = indexed-col`) -- e.g. `WHERE indexedcol >
-  val` still does a full scan, joins never use an index for either side,
-  and only one WHERE clause is ever supported at all (single-table *or*
-  joined), so an indexable equality ANDed with something else won't use
-  the index either.
+- Using an index for either side of a join's scan. Sigma-pushing moves a
+  single-table condition next to its table, but `codegen_select_join`
+  still always compiles that side as a full `Rewind`/`Next` scan with a
+  filter, never an index seek -- so pushing currently only buys skipping
+  a linear scan's rows early, not the seek assignment_opt.html's other
+  index-related point implies. `codegen_select_indexed` (the single-table
+  version of this) is the template to extend.
+- Index-based codegen otherwise only covers a single top-level equality
+  test (`indexed-col = val` / `val = indexed-col`) even in the
+  single-table case -- e.g. `WHERE indexedcol > val`, or an indexable
+  equality ANDed with anything else, still does a full scan.
 - Only two-way NATURAL JOIN of two base tables -- no 3-way joins, no
   `JOIN ... ON`/`USING`, no outer joins, no `UNION`/`INTERSECT`/`EXCEPT`.
   `codegen_select_join` rejects anything where either side of the
-  `SRA_NATURAL_JOIN` isn't itself a bare `SRA_TABLE`.
+  `SRA_NATURAL_JOIN` isn't a bare `SRA_TABLE` optionally wrapped in one
+  `SRA_SELECT`.
+- Sigma-pushing itself only recognizes the single exact shape named
+  above -- one `Select` directly over one `NaturalJoin` of two bare
+  tables. A 3-way join, a `Select` nested inside something else first, or
+  a join order where pushing below *two* joins would matter, none of
+  which this pass's NATURAL JOIN support can even express yet, would need
+  the optimizer extended alongside them.
 - Cursors are O(n) space / not amortized O(1) Next (see dbm-cursor.h) --
   explicitly sanctioned as a first-pass approximation by
   assignment_dbm.html step 3, correct but not the bonus-credit shape.

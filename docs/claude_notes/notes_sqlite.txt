@@ -1,0 +1,60 @@
+How close chidb's architecture is to real SQLite
+=================================================
+
+Asked mid-session (2026-09-11) while implementing sigma-pushing; chidb's
+own docs already say it's deliberately modeled on SQLite (SIGCSE paper
+section 2, architecture.html), so this is elaborating on that with
+specifics observed while implementing this repo's stubs.
+
+File format: chidb's on-disk format is a strict SUBSET of SQLite's, not
+just "inspired by" -- same 100-byte file header including the literal
+"SQLite format 3\0" magic string (see header_is_valid() in btree.c,
+reverse-engineered from tests/check_btree_1b.c's exact byte assertions),
+same page header layout, same B-tree page types (0x05/0x0D table
+internal/leaf, 0x02/0x0A index internal/leaf) and cell encodings. A
+chidb file IS a valid SQLite file and opens in the real `sqlite3` CLI;
+the reverse isn't true (chidb can't read SQLite's overflow pages,
+WITHOUT ROWID tables, or its fuller type system).
+
+DBM ~= VDBE: chidb's bytecode machine is explicitly modeled on SQLite's
+VDBE (Virtual Database Engine) -- registers + cursors + a small
+instruction set (OpenRead, Rewind, Next, Column, ResultRow, ...). chidb
+has 37 opcodes (dbm-types.h's FOREACH_OP); real SQLite's VDBE has on the
+order of 180. The shell's `.explain` command mirrors SQLite's EXPLAIN
+for exactly this reason -- both dump the compiled bytecode program
+instead of running it.
+
+Layering matches almost 1:1: Pager -> BTree -> DBM/VDBE -> SQL compiler
+(parser -> optimizer -> codegen) -> C API. `chidb_open/prepare/step/
+finalize` (include/chidb/chidb.h) mirrors `sqlite3_open/prepare/step/
+finalize` almost exactly, down to the same CHIDB_ROW/CHIDB_DONE step
+protocol as SQLite's SQLITE_ROW/SQLITE_DONE.
+
+Where it's simplified rather than just smaller (fileformat.html's own
+"simplifying assumptions" list, cross-checked against what this repo's
+implementation actually enforces):
+- Primary key must be a single unsigned 4-byte integer field (no
+  composite keys, no arbitrary-type keys, no WITHOUT ROWID tables).
+- No overflow pages -- a record can't exceed a page's usable size, unlike
+  real SQLite which spills large column values across overflow pages.
+- Only NULL/BYTE(int8)/SMALLINT(int16)/INTEGER(int32)/TEXT are
+  representable in a record (SQL_* constants in chisql.h) vs SQLite's
+  fuller dynamic type affinity system (INTEGER/REAL/TEXT/BLOB/NULL with
+  storage classes and affinity rules).
+- Single-user, no locking, no journal/WAL, no transactions at all --
+  SQLite's actual concurrency/durability story (rollback journal or WAL,
+  page-level locking) has no chidb counterpart; fileformat.html calls
+  this out explicitly ("a user is assumed to have exclusive access").
+- The query optimizer (optimizer.c in this repo, even with sigma-pushing
+  implemented) does nothing like SQLite's real cost-based query planner
+  (no join reordering, no cost estimation, no index selection beyond a
+  single hard-coded equality-seek rule) -- see
+  plan_chidb_implementation.md for exactly what this repo's optimizer
+  does and doesn't do.
+
+Net take: chidb isn't "a toy loosely inspired by SQLite" -- it's
+SQLite's actual architecture (file format, VDBE-style bytecode compiler,
+B-tree storage) reproduced at a scale a course project can implement in
+a quarter, with the genuinely hard production concerns (concurrency,
+durability, a real cost-based optimizer, the full SQL surface) cut away
+rather than approximated.

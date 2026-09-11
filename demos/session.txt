@@ -93,3 +93,53 @@ so an (inner) natural join drops both; `SELECT *` shows "id" only once
 (coalesced), not once per table. The second query shows a table alias
 (`courses c`) with a table-qualified WHERE (`d.name = "Math"`) on the
 right-hand table.
+
+Sigma-pushing: watching the optimizer rewrite a query
+------------------------------------------------------
+
+    $ ./chidb /tmp/sigma-push.cdb < demos/sigma-push.sql
+
+demos/sigma-push.sql:
+
+    CREATE TABLE departments(id INTEGER PRIMARY KEY, name TEXT);
+    CREATE TABLE courses(code INTEGER PRIMARY KEY, title TEXT, id INTEGER);
+    INSERT INTO departments VALUES(1, "Engineering");
+    INSERT INTO departments VALUES(2, "Math");
+    INSERT INTO courses VALUES(100, "Intro to Programming", 1);
+    INSERT INTO courses VALUES(200, "Calculus", 2);
+    INSERT INTO courses VALUES(300, "Advanced Calculus", 2);
+    .opt "SELECT title FROM courses NATURAL JOIN departments WHERE courses.code > 150;"
+    SELECT title FROM courses NATURAL JOIN departments WHERE courses.code > 150;
+
+output:
+
+    Project([title],
+            Select(courses.code > int 150,
+                    NaturalJoin(
+                            Table(courses),
+                            Table(departments)
+                    )
+            )
+    )
+
+    Project([title],
+            NaturalJoin(
+                    Select(courses.code > int 150,
+                            Table(courses)
+                    ),
+                    Table(departments)
+            )
+    )
+    Calculus
+    Advanced Calculus
+
+`.opt "SQL"` prints a query's parsed tree both before and after
+optimization, without running it -- this is the shell command
+assignment_opt.html specifies for observing "pushing sigmas" directly.
+Before: the `courses.code > 150` filter sits above the whole join, as
+written. After: since that condition only touches `courses`, the
+optimizer has moved it down to wrap `Table(courses)` directly, so it can
+be checked (and rows discarded) before ever pairing that row with
+anything from `departments` -- normal `SELECT` execution (the second
+statement here, not `.opt`) always goes through this same rewrite first,
+not just when `.opt` is asked to show it.

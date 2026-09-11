@@ -12,12 +12,15 @@ repository root `CLAUDE.md` for build instructions):
   without a `WHERE` clause, and creates an index (and, at the end, a `WHERE` that ends up using it).
 - `join.sql` — two tables sharing a column name, joined with `NATURAL JOIN`, including a table
   alias and a table-qualified `WHERE`.
-- `session.txt` — the real output of running both scripts above (plus a couple of interactive
+- `sigma-push.sql` — a `NATURAL JOIN` with a single-table `WHERE`, shown through `.opt` both before
+  and after the query optimizer pushes that condition down next to its own table.
+- `session.txt` — the real output of running all three scripts above (plus a couple of interactive
   follow-up queries against the resulting file), with commentary. Not a mock-up.
 
 Known gaps that don't show up in these demos (see
 [`../docs/claude_notes/plan_chidb_implementation.md`](../docs/claude_notes/plan_chidb_implementation.md)
 for the full picture): only a single top-level `WHERE indexedcol = val` (or `val = indexedcol`)
-equality test compiles to an index seek — anything else (`>`, an indexed column ANDed with another
-condition, a join) still falls back to a full table scan in primary-key order; and only two-way
-`NATURAL JOIN` of base tables is supported (no `JOIN ... ON`/`USING`, outer joins, or 3-way joins).
+equality test compiles to an index seek, in a single-table query — anything else (`>`, an indexed
+column ANDed with another condition), and either side of a `NATURAL JOIN` even after the optimizer
+pushes a condition next to it, still falls back to a full table scan; and only two-way `NATURAL
+JOIN` of base tables is supported (no `JOIN ... ON`/`USING`, outer joins, or 3-way joins).

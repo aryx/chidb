@@ -47,21 +47,18 @@
 #include "util.h"
 
 /* claude: covers assignment_codegen.html steps 1-5 (schema loading is in
- * util.c/api.c) plus all of assignment_opt.html's "Supporting Indexes"
- * section: CREATE INDEX + population, keeping indexes up to date on
- * INSERT, and compiling `indexed-col = val` / `val = indexed-col` WHERE
- * clauses into an index seek instead of a full scan. Two-way NATURAL
- * JOIN is supported (codegen_select_join below), including qualified
- * column names, but every SELECT -- joined or not -- still allows at
- * most one `column OP literal` WHERE clause (assignment_codegen.html
- * step 2's restriction, which step 5 says to keep).
- * NOT implemented: sigma-pushing (the other half of assignment_opt.html
- * -- rewriting `Select(cond, NaturalJoin(t1,t2))` into
- * `NaturalJoin(Select(cond,t1), t2)`; since query execution already
- * evaluates the WHERE inside the join's inner loop rather than after a
- * materialized join, the only thing pushing would actually buy here is
- * using an index for that inner scan, which isn't done either -- see
- * docs/claude_notes/plan_chidb_implementation.md). */
+ * util.c/api.c) plus all of assignment_opt.html: CREATE INDEX + population
+ * and index-seek SELECT ("Supporting Indexes"), and sigma-pushing
+ * (optimizer.c) -- which is why WHERE, for both a single-table SELECT and
+ * a NATURAL JOIN, is a full conjunction of `column OP literal` comparisons
+ * (see the "WHERE clauses" section below), not just one: a pushed
+ * NATURAL JOIN query can leave more than one conjunct on either side, or
+ * at the top. Two-way NATURAL JOIN is supported (codegen_select_join
+ * below), including qualified column names and a NaturalJoin whose sides
+ * are pre-wrapped in a Select (the shape sigma-pushing produces).
+ * NOT implemented: using an index for either side of a join's scan (so
+ * pushing a sigma only ever buys skipping a linear scan's rows early, not
+ * an index seek) -- see docs/claude_notes/plan_chidb_implementation.md. */
 
 /* Emits `opcode p1 p2 p3 p4` at *pc, then advances *pc; returns the
  * address the instruction was placed at (handy for later patching a
@@ -158,6 +155,199 @@ static bool literal_matches_type(Literal_t *lit, enum data_type coltype)
     bool lit_is_int = (lit->t == TYPE_INT);
     bool lit_is_text = (lit->t == TYPE_TEXT || lit->t == TYPE_CHAR);
     return (coltype == TYPE_INT && lit_is_int) || (coltype == TYPE_TEXT && lit_is_text);
+}
+
+
+/* --- WHERE clauses: a list of `column OP literal` conjuncts ------------
+ *
+ * A plain single-table SELECT and a NATURAL JOIN both end up needing "a
+ * list of column-vs-literal comparisons, ANDed together, each resolved
+ * against one or more tables" -- the only difference is how a column
+ * reference gets resolved to an actual table + index, so that part is a
+ * caller-supplied callback (ColResolver) and everything else is shared.
+ * This is also what makes the query optimizer's sigma-pushing
+ * (optimizer.c) safe to turn on: a NATURAL JOIN with a multi-conjunct
+ * WHERE, once pushed, still has an AND-chain left on whichever side (or
+ * both, or neither) didn't get everything pushed out of it. */
+
+/* A column reference resolved against one or two tables: single-table
+ * SELECT only ever uses side 0; NATURAL JOIN uses side 0 = left table,
+ * 1 = right table. */
+typedef struct { int side; int idx; } RCol;
+
+/* One resolved `column OP literal` comparison. `op` is already negated
+ * and operand-order-adjusted so it can be emitted directly as
+ * `emit(op, lit_reg, jump_target, col_reg)` -- jumping exactly when the
+ * *original* condition is false. See docs/claude_notes/notes_dbm_spec.txt
+ * for why Lt/Le/Gt/Ge need their operands in this particular order. */
+typedef struct { RCol col; opcode_t op; Literal_t *lit; } ResolvedCmp;
+
+typedef bool (*ColResolver)(void *ctx, ColumnReference_t *ref, RCol *out, enum data_type *type_out);
+
+static bool resolve_comparison(Condition_t *leaf, ColResolver resolve, void *ctx, ResolvedCmp *out)
+{
+    if (leaf->t != RA_COND_EQ && leaf->t != RA_COND_LT && leaf->t != RA_COND_GT &&
+        leaf->t != RA_COND_LEQ && leaf->t != RA_COND_GEQ)
+        return false;
+
+    Expression_t *e1 = leaf->cond.comp.expr1, *e2 = leaf->cond.comp.expr2;
+    Expression_t *colExpr, *valExpr;
+    bool flipped = false;
+    if (e1->t == EXPR_TERM && e1->expr.term.t == TERM_COLREF)
+    {
+        colExpr = e1;
+        valExpr = e2;
+    }
+    else if (e2->t == EXPR_TERM && e2->expr.term.t == TERM_COLREF)
+    {
+        colExpr = e2;
+        valExpr = e1;
+        flipped = true;
+    }
+    else
+        return false;
+
+    if (valExpr->t != EXPR_TERM || valExpr->expr.term.t != TERM_LITERAL)
+        return false;
+
+    enum data_type coltype;
+    if (!resolve(ctx, colExpr->expr.term.ref, &out->col, &coltype))
+        return false;
+
+    out->lit = valExpr->expr.term.val;
+    if (!literal_matches_type(out->lit, coltype))
+        return false;
+
+    enum CondType ct = leaf->t;
+    if (flipped)
+        switch (ct)
+        {
+        case RA_COND_LT: ct = RA_COND_GT; break;
+        case RA_COND_GT: ct = RA_COND_LT; break;
+        case RA_COND_LEQ: ct = RA_COND_GEQ; break;
+        case RA_COND_GEQ: ct = RA_COND_LEQ; break;
+        default: break;
+        }
+    switch (ct)
+    {
+    case RA_COND_EQ:  out->op = Op_Ne; break;
+    case RA_COND_GT:  out->op = Op_Le; break;
+    case RA_COND_GEQ: out->op = Op_Lt; break;
+    case RA_COND_LT:  out->op = Op_Ge; break;
+    case RA_COND_LEQ: out->op = Op_Gt; break;
+    default: break;
+    }
+    return true;
+}
+
+/* Flattens the top-level AND-chain of `cond` into leaf Condition_t*'s (a
+ * `cond` that isn't itself an AND is a length-1 chain of just itself).
+ * OR/NOT/IN anywhere in the chain aren't comparisons and so simply fail
+ * to resolve later, in resolve_comparison() -- this function only cares
+ * about splitting AND nodes apart. */
+static void flatten_conjuncts(Condition_t *cond, Condition_t ***list, int *n, int *cap)
+{
+    if (cond->t == RA_COND_AND)
+    {
+        flatten_conjuncts(cond->cond.binary.cond1, list, n, cap);
+        flatten_conjuncts(cond->cond.binary.cond2, list, n, cap);
+        return;
+    }
+
+    if (*n == *cap)
+    {
+        *cap = *cap ? *cap * 2 : 4;
+        *list = realloc(*list, sizeof(Condition_t *) * *cap);
+    }
+    (*list)[(*n)++] = cond;
+}
+
+/* Resolves every conjunct of `cond` into a ResolvedCmp (or does nothing
+ * and succeeds trivially if `cond` is NULL, i.e. there's no WHERE at
+ * all). On success, *out is a malloc'd array (possibly NULL/empty) the
+ * caller must free; on failure (any conjunct isn't a plain, resolvable
+ * `column OP literal` comparison), returns false without allocating. */
+static bool resolve_conjuncts(Condition_t *cond, ColResolver resolve, void *ctx, ResolvedCmp **out, int *nout)
+{
+    if (!cond)
+    {
+        *out = NULL;
+        *nout = 0;
+        return true;
+    }
+
+    Condition_t **list = NULL;
+    int n = 0, cap = 0;
+    flatten_conjuncts(cond, &list, &n, &cap);
+
+    ResolvedCmp *cmps = malloc(sizeof(ResolvedCmp) * n);
+    for (int i = 0; i < n; i++)
+        if (!resolve_comparison(list[i], resolve, ctx, &cmps[i]))
+        {
+            free(list);
+            free(cmps);
+            return false;
+        }
+    free(list);
+    *out = cmps;
+    *nout = n;
+    return true;
+}
+
+/* ColResolver for a single-table SELECT: `ctx` is that table's Column_t
+ * list, and every resolved column is (necessarily) side 0. Doesn't
+ * validate a table-name qualifier against the actual table name (neither
+ * did the single-condition code this replaced) -- there's only one table
+ * it could sensibly refer to anyway. */
+static bool resolve_single_column(void *ctx, ColumnReference_t *ref, RCol *out, enum data_type *type_out)
+{
+    Column_t *columns = (Column_t *) ctx;
+    int idx = column_index_by_name(columns, ref->columnName, type_out);
+    if (idx < 0)
+        return false;
+    *out = (RCol){ 0, idx };
+    return true;
+}
+
+/* Loads every conjunct's literal into its own register, once, starting
+ * at r_lit_base -- they're compile-time constants, so there's no reason
+ * to reload them on every row the way the column side has to be. */
+static void emit_filter_literals(chidb_stmt *stmt, int *pc, ResolvedCmp *cmps, int n, int32_t r_lit_base)
+{
+    for (int i = 0; i < n; i++)
+        emit_literal(stmt, pc, cmps[i].lit, r_lit_base + i);
+}
+
+/* Reads an RCol's current value (via cursor 0 for side 0, cursor 1 for
+ * side 1 -- a single-table SELECT only ever uses side 0/cursor 0, and
+ * cols2 is never dereferenced in that case) into `reg`, as Key or Column
+ * depending on whether it's that table's primary key. */
+static void emit_rcol(chidb_stmt *stmt, int *pc, RCol rc, Column_t *cols1, Column_t *cols2, int32_t reg)
+{
+    Column_t *cols = rc.side == 0 ? cols1 : cols2;
+    int32_t cursor = rc.side == 0 ? 0 : 1;
+    if (column_is_primary_key(cols, rc.idx))
+        emit(stmt, pc, Op_Key, cursor, reg, 0, NULL);
+    else
+        emit(stmt, pc, Op_Column, cursor, rc.idx, reg, NULL);
+}
+
+/* Emits the per-row half of a list of filter checks: for each conjunct,
+ * read its column's current value and compare it against the
+ * already-loaded literal at r_lit_base+i, appending the address of the
+ * (negated) jump to `patch` so the caller can point every one of them at
+ * wherever "this row doesn't match, skip it" actually means once that's
+ * known (the two-table caller needs two different such addresses -- see
+ * codegen_select_join). */
+static void emit_filter_checks(chidb_stmt *stmt, int *pc, ResolvedCmp *cmps, int n,
+                                Column_t *cols1, Column_t *cols2, int32_t r_lit_base, int32_t r_tmp,
+                                int *patch, int *npatch)
+{
+    for (int i = 0; i < n; i++)
+    {
+        emit_rcol(stmt, pc, cmps[i].col, cols1, cols2, r_tmp);
+        patch[(*npatch)++] = emit(stmt, pc, cmps[i].op, r_lit_base + i, -1, r_tmp, NULL);
+    }
 }
 
 
@@ -431,10 +621,8 @@ static int codegen_select_indexed(chidb_stmt *stmt, chidb_schema_item_t *tbl, ch
 
 /* --- SELECT ... NATURAL JOIN ------------------------------------------- */
 
-/* A column reference resolved against one of the two tables in a
+/* Resolves a column reference against one of the two tables in a
  * two-way NATURAL JOIN: side 0 = the left table, 1 = the right. */
-typedef struct { int side; int idx; } RCol;
-
 static bool resolve_join_column(ColumnReference_t *ref,
                                  Column_t *cols1, const char *name1, const char *alias1,
                                  Column_t *cols2, const char *name2, const char *alias2,
@@ -482,38 +670,66 @@ static bool resolve_join_column(ColumnReference_t *ref,
     return false;
 }
 
-static void emit_rcol(chidb_stmt *stmt, int *pc, RCol rc, Column_t *cols1, Column_t *cols2, int32_t reg)
+/* ColResolver adapter for resolve_join_column(), so join WHERE clauses can
+ * go through the same resolve_conjuncts() as a single-table SELECT. */
+typedef struct
 {
-    Column_t *cols = rc.side == 0 ? cols1 : cols2;
-    int32_t cursor = rc.side == 0 ? 0 : 1;
-    if (column_is_primary_key(cols, rc.idx))
-        emit(stmt, pc, Op_Key, cursor, reg, 0, NULL);
-    else
-        emit(stmt, pc, Op_Column, cursor, rc.idx, reg, NULL);
+    Column_t *cols1; const char *name1; const char *alias1;
+    Column_t *cols2; const char *name2; const char *alias2;
+} JoinResolveCtx;
+
+static bool resolve_join_column_cb(void *ctx0, ColumnReference_t *ref, RCol *out, enum data_type *type_out)
+{
+    JoinResolveCtx *ctx = (JoinResolveCtx *) ctx0;
+    return resolve_join_column(ref, ctx->cols1, ctx->name1, ctx->alias1, ctx->cols2, ctx->name2, ctx->alias2,
+                                out, type_out);
 }
 
 /* claude: assignment_codegen.html step 5 (two-way NATURAL JOIN, columns
  * optionally qualified with a table name/alias) combined with step 2's
- * WHERE restriction ("always have a single condition") -- there is no
- * NATURAL-JOIN-specific test suite published upstream
- * (assignment_codegen.html: "Tests for NATURAL JOIN are not currently
- * available"), so this is validated against a fixture built for this
- * pass; see tests/files/dbm-programs/sql-select-join/.
+ * WHERE restriction, generalized to a conjunction of comparisons (see
+ * the "WHERE clauses" section above) -- needed for optimizer.c's
+ * sigma-pushing to be safe to turn on, since a condition pushed to one
+ * side of the join can leave more than one conjunct on the other side,
+ * or at the top. There is no NATURAL-JOIN-specific test suite published
+ * upstream (assignment_codegen.html: "Tests for NATURAL JOIN are not
+ * currently available"), so this is validated against a fixture built
+ * for this pass; see tests/files/dbm-programs/sql-select-join/.
+ *
+ * `table_sra` is the NaturalJoin node; either side may itself be a
+ * Select wrapping a bare Table -- exactly the shape optimizer.c's
+ * sigma-pushing produces, moving conditions that only touch one side
+ * down next to that side's Table. `cond` is whatever's left un-pushed
+ * at the top (NULL if everything was pushed, or if the optimizer never
+ * touched this query in the first place).
  *
  * Compiles to a nested-loop join: cursor 0 = left table, cursor 1 =
- * right table, rewind cursor 0 once, and for every one of its rows
- * rewind cursor 1 and scan all of its rows, testing (a) every
- * same-named-column pair for equality -- that's the actual "natural"
- * part -- and (b) the optional WHERE, before emitting a result row.
- * Both kinds of test are compiled as negated jumps straight to the
- * `Next cursor 1` instruction, exactly like the single-table scan's
- * WHERE handling (see codegen_select below). Sigma-pushing (using an
- * index instead of a full scan on either side) is not implemented --
- * see docs/claude_notes/plan_chidb_implementation.md. */
+ * right table. A condition pushed to the LEFT side is checked once per
+ * outer-loop row, skipping straight past the entire inner loop when it
+ * fails -- the actual performance point of pushing, in this executor.
+ * A condition pushed to the RIGHT side, the natural-join equality tests
+ * themselves, and whatever's left at the top are all checked once per
+ * (outer,inner) pair, same as before pushing existed. Every kind of
+ * check is a negated jump straight to the relevant Next instruction,
+ * same technique as the single-table scan uses. Using an index for
+ * either side's scan is not implemented -- see
+ * docs/claude_notes/plan_chidb_implementation.md. */
 static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t *expr_list, Condition_t *cond)
 {
     chidb *db = stmt->db;
     SRA_t *sra1 = table_sra->binary.sra1, *sra2 = table_sra->binary.sra2;
+
+    Condition_t *side1_cond = NULL, *side2_cond = NULL;
+    if (sra1->t == SRA_SELECT)
+    {
+        side1_cond = sra1->select.cond;
+        sra1 = sra1->select.sra;
+    }
+    if (sra2->t == SRA_SELECT)
+    {
+        side2_cond = sra2->select.cond;
+        sra2 = sra2->select.sra;
+    }
     if (sra1->t != SRA_TABLE || sra2->t != SRA_TABLE)
         return CHIDB_EINVALIDSQL; /* only a two-way join of base tables */
 
@@ -529,6 +745,7 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     Column_t *cols1 = table_columns(tbl1, &parsed1);
     Column_t *cols2 = table_columns(tbl2, &parsed2);
     int ncols1 = column_count(cols1), ncols2 = column_count(cols2);
+    JoinResolveCtx jctx = { cols1, name1, alias1, cols2, name2, alias2 };
 
     /* Natural-join column pairs: every name shared by both tables. */
     int *join1 = malloc(sizeof(int) * ncols1);
@@ -591,7 +808,7 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
         for (Expression_t *e = expr_list; e; e = e->next, k++)
         {
             if (e->t != EXPR_TERM || e->expr.term.t != TERM_COLREF ||
-                !resolve_join_column(e->expr.term.ref, cols1, name1, alias1, cols2, name2, alias2, &out[k], NULL))
+                !resolve_join_column_cb(&jctx, e->expr.term.ref, &out[k], NULL))
             {
                 free(out);
                 free(join1);
@@ -603,98 +820,29 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
         }
     }
 
-    bool has_where = false;
-    RCol where_col = { 0, 0 };
-    opcode_t where_op = Op_Ne;
-    Literal_t *where_lit = NULL;
-
-    if (cond)
+    ResolvedCmp *side1_cmps = NULL, *side2_cmps = NULL, *top_cmps = NULL;
+    int n1 = 0, n2 = 0, nt = 0;
+    if (!resolve_conjuncts(side1_cond, resolve_join_column_cb, &jctx, &side1_cmps, &n1) ||
+        !resolve_conjuncts(side2_cond, resolve_join_column_cb, &jctx, &side2_cmps, &n2) ||
+        !resolve_conjuncts(cond, resolve_join_column_cb, &jctx, &top_cmps, &nt))
     {
-        if (cond->t != RA_COND_EQ && cond->t != RA_COND_LT && cond->t != RA_COND_GT &&
-            cond->t != RA_COND_LEQ && cond->t != RA_COND_GEQ)
-        {
-            free(out);
-            free(join1);
-            free(join2);
-            free(parsed1);
-            free(parsed2);
-            return CHIDB_EINVALIDSQL;
-        }
-
-        Expression_t *e1 = cond->cond.comp.expr1, *e2 = cond->cond.comp.expr2;
-        Expression_t *colExpr, *valExpr;
-        bool flipped = false;
-        if (e1->t == EXPR_TERM && e1->expr.term.t == TERM_COLREF)
-        {
-            colExpr = e1;
-            valExpr = e2;
-        }
-        else if (e2->t == EXPR_TERM && e2->expr.term.t == TERM_COLREF)
-        {
-            colExpr = e2;
-            valExpr = e1;
-            flipped = true;
-        }
-        else
-        {
-            free(out);
-            free(join1);
-            free(join2);
-            free(parsed1);
-            free(parsed2);
-            return CHIDB_EINVALIDSQL;
-        }
-
-        enum data_type coltype;
-        bool resolved = valExpr->t == EXPR_TERM && valExpr->expr.term.t == TERM_LITERAL &&
-                         resolve_join_column(colExpr->expr.term.ref, cols1, name1, alias1, cols2, name2, alias2,
-                                              &where_col, &coltype);
-        where_lit = valExpr->expr.term.val;
-        if (!resolved || !literal_matches_type(where_lit, coltype))
-        {
-            free(out);
-            free(join1);
-            free(join2);
-            free(parsed1);
-            free(parsed2);
-            return CHIDB_EINVALIDSQL;
-        }
-
-        enum CondType ct = cond->t;
-        if (flipped)
-            switch (ct)
-            {
-            case RA_COND_LT: ct = RA_COND_GT; break;
-            case RA_COND_GT: ct = RA_COND_LT; break;
-            case RA_COND_LEQ: ct = RA_COND_GEQ; break;
-            case RA_COND_GEQ: ct = RA_COND_LEQ; break;
-            default: break;
-            }
-
-        switch (ct)
-        {
-        case RA_COND_EQ:  where_op = Op_Ne; break;
-        case RA_COND_GT:  where_op = Op_Le; break;
-        case RA_COND_GEQ: where_op = Op_Lt; break;
-        case RA_COND_LT:  where_op = Op_Ge; break;
-        case RA_COND_LEQ: where_op = Op_Gt; break;
-        default: break;
-        }
-        has_where = true;
+        free(side1_cmps);
+        free(side2_cmps);
+        free(top_cmps);
+        free(out);
+        free(join1);
+        free(join2);
+        free(parsed1);
+        free(parsed2);
+        return CHIDB_EINVALIDSQL;
     }
 
     /* From here on nothing else can fail, so it's safe to start emitting. */
-    int next_reg = 0;
-    int32_t r_root1 = next_reg++;
-    int32_t r_root2 = next_reg++;
-    int32_t r_lit = has_where ? next_reg++ : -1;
-    int32_t r_tmp_a = next_reg++;
-    int32_t r_tmp_b = next_reg++;
-    int32_t r_out0 = next_reg;
-    next_reg += nout;
-
-    int *patch = malloc(sizeof(int) * (npairs + 1));
-    int npatch = 0;
+    int32_t r_root1 = 0, r_root2 = 1;
+    int32_t r_lit_base = 2;
+    int32_t r_tmp_a = r_lit_base + n1 + n2 + nt;
+    int32_t r_tmp_b = r_tmp_a + 1;
+    int32_t r_out0 = r_tmp_b + 1;
 
     int pc = 0;
     emit(stmt, &pc, Op_Integer, (int32_t) tbl1->root_page, r_root1, 0, NULL);
@@ -702,11 +850,22 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     emit(stmt, &pc, Op_Integer, (int32_t) tbl2->root_page, r_root2, 0, NULL);
     emit(stmt, &pc, Op_OpenRead, 1, r_root2, ncols2, NULL);
 
-    if (has_where)
-        emit_literal(stmt, &pc, where_lit, r_lit);
+    emit_filter_literals(stmt, &pc, side1_cmps, n1, r_lit_base);
+    emit_filter_literals(stmt, &pc, side2_cmps, n2, r_lit_base + n1);
+    emit_filter_literals(stmt, &pc, top_cmps, nt, r_lit_base + n1 + n2);
+
+    int npatch_max = npairs + n1 + n2 + nt + 1;
+    int *patch_outer = malloc(sizeof(int) * npatch_max);
+    int *patch_inner = malloc(sizeof(int) * npatch_max);
+    int npatch_outer = 0, npatch_inner = 0;
 
     int addr_rewind0 = emit(stmt, &pc, Op_Rewind, 0, -1, 0, NULL);
     int addr_loop1 = pc;
+
+    /* Conditions pushed to the left (outer) table: checked once per
+     * outer row, before we even bother rewinding the inner cursor. */
+    emit_filter_checks(stmt, &pc, side1_cmps, n1, cols1, cols2, r_lit_base, r_tmp_a, patch_outer, &npatch_outer);
+
     int addr_rewind1 = emit(stmt, &pc, Op_Rewind, 1, -1, 0, NULL);
     int addr_loop2 = pc;
 
@@ -714,25 +873,24 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     {
         emit_rcol(stmt, &pc, (RCol){ 0, join1[p] }, cols1, cols2, r_tmp_a);
         emit_rcol(stmt, &pc, (RCol){ 1, join2[p] }, cols1, cols2, r_tmp_b);
-        patch[npatch++] = emit(stmt, &pc, Op_Ne, r_tmp_a, -1, r_tmp_b, NULL);
+        patch_inner[npatch_inner++] = emit(stmt, &pc, Op_Ne, r_tmp_a, -1, r_tmp_b, NULL);
     }
-
-    if (has_where)
-    {
-        emit_rcol(stmt, &pc, where_col, cols1, cols2, r_tmp_a);
-        patch[npatch++] = emit(stmt, &pc, where_op, r_lit, -1, r_tmp_a, NULL);
-    }
+    emit_filter_checks(stmt, &pc, side2_cmps, n2, cols1, cols2, r_lit_base + n1, r_tmp_a, patch_inner, &npatch_inner);
+    emit_filter_checks(stmt, &pc, top_cmps, nt, cols1, cols2, r_lit_base + n1 + n2, r_tmp_a, patch_inner,
+                        &npatch_inner);
 
     for (int k = 0; k < nout; k++)
         emit_rcol(stmt, &pc, out[k], cols1, cols2, r_out0 + k);
     emit(stmt, &pc, Op_ResultRow, r_out0, nout, 0, NULL);
 
-    int addr_skip = emit(stmt, &pc, Op_Next, 1, addr_loop2, 0, NULL);
-    for (int k = 0; k < npatch; k++)
-        stmt->ops[patch[k]].p2 = addr_skip;
+    int addr_skip_inner = emit(stmt, &pc, Op_Next, 1, addr_loop2, 0, NULL);
+    for (int k = 0; k < npatch_inner; k++)
+        stmt->ops[patch_inner[k]].p2 = addr_skip_inner;
 
     int addr_next0 = pc;
     stmt->ops[addr_rewind1].p2 = addr_next0;
+    for (int k = 0; k < npatch_outer; k++)
+        stmt->ops[patch_outer[k]].p2 = addr_next0;
     emit(stmt, &pc, Op_Next, 0, addr_loop1, 0, NULL);
 
     int addr_end = pc;
@@ -747,7 +905,11 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
     for (int k = 0; k < nout; k++)
         stmt->cols[k] = strdup(column_name_at(out[k].side == 0 ? cols1 : cols2, out[k].idx));
 
-    free(patch);
+    free(patch_outer);
+    free(patch_inner);
+    free(side1_cmps);
+    free(side2_cmps);
+    free(top_cmps);
     free(out);
     free(join1);
     free(join2);
@@ -758,15 +920,14 @@ static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t 
 
 
 /* claude: register layout mirrors testing.html's worked example
- * (`SELECT * FROM courses`): r0=table root, r1..r(nout)=output columns
- * when there's no WHERE clause. With a WHERE clause, r1=the literal
- * (loaded once, before the loop), r2=the row's current value for the
- * WHERE column (reloaded every iteration), and the output columns shift
- * up to r3..r(2+nout) to make room.
- *
- * The WHERE test is compiled as its own *negation*, jumping straight to
- * the Next instruction (skipping this row) when the negation holds --
- * e.g. `col > val` becomes `Le val, addr_next, col` ("if col <= val, skip").
+ * (`SELECT * FROM courses`) in the no-WHERE case: r0=table root,
+ * r1..r(nout)=output columns. A WHERE clause (any number of `column OP
+ * literal` conjuncts ANDed together -- see the "WHERE clauses" section
+ * above) shifts the output columns up to make room for one literal
+ * register per conjunct plus one shared scratch register, and each
+ * conjunct is compiled as its own *negation*, jumping straight to the
+ * Next instruction (skipping this row) when the negation holds -- e.g.
+ * `col > val` becomes `Le val, addr_next, col` ("if col <= val, skip").
  * See docs/claude_notes/notes_dbm_spec.txt for why the comparison
  * opcodes' operand order has to be mirrored like this. */
 static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
@@ -838,130 +999,53 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
         }
     }
 
-    bool has_where = false;
-    bool where_is_eq = false;
-    int where_col_idx = -1;
-    opcode_t where_op = Op_Ne;
-    Literal_t *where_lit = NULL;
-
-    if (cond)
+    ResolvedCmp *cmps;
+    int ncmp;
+    if (!resolve_conjuncts(cond, resolve_single_column, columns, &cmps, &ncmp))
     {
-        if (cond->t != RA_COND_EQ && cond->t != RA_COND_LT && cond->t != RA_COND_GT &&
-            cond->t != RA_COND_LEQ && cond->t != RA_COND_GEQ)
-        {
-            free(out_idx);
-            free(parsed);
-            return CHIDB_EINVALIDSQL;
-        }
-
-        Expression_t *e1 = cond->cond.comp.expr1, *e2 = cond->cond.comp.expr2;
-        Expression_t *colExpr, *valExpr;
-        bool flipped = false;
-        if (e1->t == EXPR_TERM && e1->expr.term.t == TERM_COLREF)
-        {
-            colExpr = e1;
-            valExpr = e2;
-        }
-        else if (e2->t == EXPR_TERM && e2->expr.term.t == TERM_COLREF)
-        {
-            colExpr = e2;
-            valExpr = e1;
-            flipped = true;
-        }
-        else
-        {
-            free(out_idx);
-            free(parsed);
-            return CHIDB_EINVALIDSQL;
-        }
-
-        if (valExpr->t != EXPR_TERM || valExpr->expr.term.t != TERM_LITERAL)
-        {
-            free(out_idx);
-            free(parsed);
-            return CHIDB_EINVALIDSQL;
-        }
-
-        enum data_type coltype;
-        where_col_idx = column_index_by_name(columns, colExpr->expr.term.ref->columnName, &coltype);
-        where_lit = valExpr->expr.term.val;
-        if (where_col_idx < 0 || !literal_matches_type(where_lit, coltype))
-        {
-            free(out_idx);
-            free(parsed);
-            return CHIDB_EINVALIDSQL;
-        }
-
-        enum CondType ct = cond->t;
-        if (flipped)
-            switch (ct)
-            {
-            case RA_COND_LT: ct = RA_COND_GT; break;
-            case RA_COND_GT: ct = RA_COND_LT; break;
-            case RA_COND_LEQ: ct = RA_COND_GEQ; break;
-            case RA_COND_GEQ: ct = RA_COND_LEQ; break;
-            default: break;
-            }
-
-        where_is_eq = (ct == RA_COND_EQ);
-        switch (ct)
-        {
-        case RA_COND_EQ:  where_op = Op_Ne; break;
-        case RA_COND_GT:  where_op = Op_Le; break;
-        case RA_COND_GEQ: where_op = Op_Lt; break;
-        case RA_COND_LT:  where_op = Op_Ge; break;
-        case RA_COND_LEQ: where_op = Op_Gt; break;
-        default: break;
-        }
-        has_where = true;
+        free(out_idx);
+        free(parsed);
+        return CHIDB_EINVALIDSQL;
     }
 
-    /* assignment_opt.html point 3: `indexed-col = val` / `val = indexed-col`
-     * compiles to an index seek instead of a full scan. */
-    if (has_where && where_is_eq)
+    /* assignment_opt.html point 3: a single top-level `indexed-col = val`
+     * (or `val = indexed-col`) compiles to an index seek instead of a
+     * full scan -- doesn't extend to a multi-conjunct WHERE. */
+    if (ncmp == 1 && cmps[0].op == Op_Ne)
     {
-        chidb_schema_item_t *idx = chidb_schema_find_index_on(db, table_name, column_name_at(columns, where_col_idx));
+        chidb_schema_item_t *idx = chidb_schema_find_index_on(db, table_name, column_name_at(columns, cmps[0].col.idx));
         if (idx)
         {
-            int rc = codegen_select_indexed(stmt, tbl, idx, columns, out_idx, nout, where_lit);
+            int rc = codegen_select_indexed(stmt, tbl, idx, columns, out_idx, nout, cmps[0].lit);
+            free(cmps);
             free(out_idx);
             free(parsed);
             return rc;
         }
     }
 
-    bool where_col_is_pk = has_where && column_is_primary_key(columns, where_col_idx);
-
-    int r_root = 0;
-    int r_lit = 1;
-    int r_col = 2;
-    int r_out0 = has_where ? 3 : 1;
+    int32_t r_root = 0;
+    int32_t r_lit_base = 1;
+    int32_t r_tmp = r_lit_base + ncmp;
+    int32_t r_out0 = (ncmp == 0) ? r_lit_base : (r_tmp + 1);
 
     int pc = 0;
     emit(stmt, &pc, Op_Integer, (int32_t) tbl->root_page, r_root, 0, NULL);
     emit(stmt, &pc, Op_OpenRead, 0, r_root, ncols, NULL);
-
-    if (has_where)
-        emit_literal(stmt, &pc, where_lit, r_lit);
+    emit_filter_literals(stmt, &pc, cmps, ncmp, r_lit_base);
 
     int addr_rewind = emit(stmt, &pc, Op_Rewind, 0, -1, 0, NULL);
     int addr_loop = pc;
 
-    int addr_skip = -1;
-    if (has_where)
-    {
-        if (where_col_is_pk)
-            emit(stmt, &pc, Op_Key, 0, r_col, 0, NULL);
-        else
-            emit(stmt, &pc, Op_Column, 0, where_col_idx, r_col, NULL);
-        addr_skip = emit(stmt, &pc, where_op, r_lit, -1, r_col, NULL);
-    }
+    int *patch = malloc(sizeof(int) * (ncmp + 1));
+    int npatch = 0;
+    emit_filter_checks(stmt, &pc, cmps, ncmp, columns, NULL, r_lit_base, r_tmp, patch, &npatch);
 
     emit_output_columns(stmt, &pc, 0, columns, out_idx, nout, r_out0);
 
     int addr_next = emit(stmt, &pc, Op_Next, 0, addr_loop, 0, NULL);
-    if (has_where)
-        stmt->ops[addr_skip].p2 = addr_next;
+    for (int k = 0; k < npatch; k++)
+        stmt->ops[patch[k]].p2 = addr_next;
 
     int addr_after = pc;
     stmt->ops[addr_rewind].p2 = addr_after;
@@ -971,6 +1055,8 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
 
     set_output_columns(stmt, columns, out_idx, nout);
 
+    free(patch);
+    free(cmps);
     free(out_idx);
     free(parsed);
     return CHIDB_OK;

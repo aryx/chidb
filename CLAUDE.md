@@ -10,15 +10,18 @@ implement the database virtual machine (DBM) opcode handlers, the query optimize
 code generator themselves. This fork (`aryx/chidb`, remote `origin`) tracks upstream fixes via PRs
 from other contributors.
 
-**Status (2026-09-11): the course-assignment stubs have been implemented** —
-`btree.c`, `dbm-cursor.[ch]`, `dbm-ops.c`, `codegen.c` (CREATE TABLE, CREATE INDEX with population,
-INSERT with index maintenance, single-table SELECT and two-way NATURAL JOIN with an optional WHERE
-— compiled to an index seek instead of a full scan when the WHERE is a single-table equality test
-on an indexed column) all have real implementations now, `optimizer.c` is left as the original
-correct no-op pass-through, and `make check` is green (5/5 suites, 111 DBMF cases). Sigma-pushing
-and index-based lookups for joins are NOT implemented. See
-`docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. not, and
-`docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode spec pulled from
+**Status (2026-09-11): all four course assignments are implemented, including query
+optimization** — `btree.c`, `dbm-cursor.[ch]`, `dbm-ops.c`, `codegen.c` (CREATE TABLE, CREATE INDEX
+with population, INSERT with index maintenance, single-table SELECT and two-way NATURAL JOIN, each
+with a full conjunction of `column OP literal` WHERE clauses — compiled to an index seek instead of
+a full scan for a single-table equality test on an indexed column), and `optimizer.c` (sigma-pushing
+for NATURAL JOIN queries, verified against `assignment_opt.html`'s own worked example) all have real
+implementations now, and `make check` is green (5/5 suites, 111 DBMF cases) — with the optimizer
+live for every query. Also fixed along the way: a pre-existing, unrelated buffer-overflow crash in
+`libchisql`'s pretty-printer that broke the shell's `.parse`/`.opt` commands (see
+`src/libchisql/common.c`'s `indent_print()`). See `docs/claude_notes/plan_chidb_implementation.md`
+for exactly what's done vs. the remaining gaps (index-based join scans, 3-way joins, and a few
+others), and `docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode spec pulled from
 chi.cs.uchicago.edu/chidb (not shipped in this repo, and not reachable via HTTPS from this sandbox
 — fetched over plain HTTP with `curl` + `w3m -dump`). Small runnable examples are under `demos/`.
 Before assuming a SQL feature works or doesn't, check the plan file's "Not implemented" list first.
@@ -65,7 +68,9 @@ chisql AST          (include/chisql/*.h: create, insert, delete, condition, expr
   │  ra.c / sra.h describe the RA/SRA algebra the parser output maps onto
   │  (SQL → SRA → RA, see comment in include/chisql/sra.h)
   ▼
-optimizer.c          chidb_stmt_optimize(): no-op pass-through (query optimization not implemented)
+optimizer.c          chidb_stmt_optimize(): sigma-pushing for `Select(cond, NaturalJoin(t1,t2))`
+                     queries (pushes single-table conjuncts down next to their table); a no-op
+                     pass-through for every other statement shape
   ▼
 codegen.c             chidb_stmt_codegen(): compiles the (optimized) statement into DBM bytecode
   ▼
