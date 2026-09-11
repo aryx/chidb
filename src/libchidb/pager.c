@@ -199,7 +199,7 @@ int	chidb_Pager_readPage(Pager *pager, npage_t npage, MemPage **page)
         return CHIDB_ENOMEM;
     fseek(pager->f, (npage - 1) * pager->page_size, SEEK_SET);
     n = fread((*page)->data, 1, pager->page_size, pager->f);
-    log_trace("Read %i bytes from page %i into memory [%x data: %x]", n, npage, *page, (*page)->data);
+    log_trace("Read %i bytes from page %i into memory [%p data: %p]", n, npage, (void *) *page, (void *) (*page)->data);
 
     return CHIDB_OK;
 }
@@ -246,7 +246,7 @@ int	chidb_Pager_releaseMemPage(Pager *pager, MemPage *page)
     if (page->npage > pager->n_pages)
         return CHIDB_EPAGENO;
 
-    log_trace("Releasing page %i from memory [%x data: %x]", page->npage, page, page->data);
+    log_trace("Releasing page %i from memory [%p data: %p]", page->npage, (void *) page, (void *) page->data);
     free(page->data);
     free(page);
 

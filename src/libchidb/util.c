@@ -200,29 +200,32 @@ int chidb_Btree_print(BTree *bt, npage_t npage, fBTreeCellPrinter printer, bool 
     return CHIDB_OK;
 }
 
-FILE *copy(const char *from, const char *to)
+/* claude: used to return the (already-closed) FILE* on success, which every
+ * caller only compared against NULL; that was a use-after-free waiting to
+ * happen, so this now reports success/failure directly */
+int copy(const char *from, const char *to)
 {
     FILE *fromf, *tof;
     char ch;
 
     if( (fromf = fopen(from, "rb")) == NULL || (tof = fopen(to, "wb")) == NULL)
-        return NULL;
+        return -1;
 
     /* copy the file */
     while(!feof(fromf))
     {
         ch = fgetc(fromf);
         if(ferror(fromf))
-            return NULL;
+            return -1;
         fputc(ch, tof);
         if(ferror(tof))
-            return NULL;
+            return -1;
     }
 
     if(fclose(fromf)==EOF || fclose(tof)==EOF)
-        return NULL;
+        return -1;
 
-    return tof;
+    return 0;
 }
 
 

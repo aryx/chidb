@@ -14,7 +14,7 @@ char *database_file_path(const char *fname);
 char *generated_file_path(const char *fname);
 
 // From libchidb/util.c
-FILE *copy(const char *from, const char *to);
+int copy(const char *from, const char *to);
 
 char* create_copy(const char *src, const char *dst);
 void delete_copy(char *f);

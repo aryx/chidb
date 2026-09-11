@@ -31,7 +31,7 @@ char* create_copy(const char *src, const char *dst)
     char *dstfile = generated_file_path(dst);
 
     remove(dstfile);
-    if(copy(srcfile, dstfile) == NULL)
+    if(copy(srcfile, dstfile) != 0)
         ck_abort_msg("Could not create copy of file.");
 
     free(srcfile);

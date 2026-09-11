@@ -85,7 +85,8 @@ void log_log(log_level_t level, const char *file, int line, const char *fmt, ...
 void log_hexdump_(log_level_t level, const char *file, int line, const void *data, int len)
 {
     int i;
-    char buf[8];
+    /* claude: sized for the worst case "  %08x " (up to 8 hex digits for i) plus NUL */
+    char buf[12];
     char ascii[17];
     char linebuf[74];
     const uint8_t *pc = data;

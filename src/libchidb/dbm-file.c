@@ -170,7 +170,7 @@ int __chidb_dbm_file_load_db(chidb_dbm_file_t *dbmf, char *line, const char* dbf
                 return CHIDB_ENOMEM;
 
             remove(dbmf->dbfile);
-            if(copy(srcfile, dbmf->dbfile) == NULL)
+            if(copy(srcfile, dbmf->dbfile) != 0)
                 return CHIDB_EIO;
 
             dbmf->delete_dbfile = false;

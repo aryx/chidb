@@ -66,7 +66,7 @@ int chidb_Btree_print(BTree *bt, npage_t nroot, fBTreeCellPrinter printer, bool 
 void chidb_BTree_recordPrinter(BTreeNode *btn, BTreeCell *btc);
 void chidb_BTree_stringPrinter(BTreeNode *btn, BTreeCell *btc);
 
-FILE *copy(const char *from, const char *to);
+int copy(const char *from, const char *to);
 
 /* claude: schema helpers, see chidb_schema_item_t in chidbInt.h and their
  * implementation in util.c for details. */

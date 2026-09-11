@@ -30,7 +30,7 @@ TCase* make_btree_8_tc(void);
 
 
 
-FILE *copy(const char *from, const char *to);
+int copy(const char *from, const char *to);
 
 void create_temp_file(const char *from);
 
