@@ -21,6 +21,7 @@ demos/library.sql contains:
     SELECT title, author FROM books WHERE id = 3;
     CREATE INDEX idxYear ON books(year);
     SELECT title FROM books WHERE year = 1994;
+    SELECT title FROM books WHERE year > 1985;
 
 And produces exactly this output (CREATE TABLE/INSERT/CREATE INDEX print
 nothing -- they only run their DBM program for effect, not rows):
@@ -33,6 +34,8 @@ nothing -- they only run their DBM program for effect, not rows):
     The C Programming Language
     The C Programming Language|Kernighan & Ritchie
     Design Patterns
+    Design Patterns
+    The Pragmatic Programmer
 
 /tmp/library.cdb is now a real, well-formed chidb file: page 1 is the
 schema table (one row for "books", one for "idxYear"), page 2 is the
@@ -51,16 +54,23 @@ also be queried again later, in a fresh invocation of the shell, and with
     Design Patterns|1994
 
 Rows come back in ascending order of the table's primary key, "id" -- 1
-then 4 here. `idxYear` exists but isn't used for either query above: a
-`WHERE year >= 1994` isn't an equality test, and this build's index-based
-codegen only recognizes a top-level `indexedcol = val` / `val =
-indexedcol` (see the "Not implemented" list in
-docs/claude_notes/plan_chidb_implementation.md). The *last* query in
-library.sql, `SELECT title FROM books WHERE year = 1994;`, is exactly
-that shape and does compile to an index seek -- `chidb library.cdb` then
-`EXPLAIN SELECT title FROM books WHERE year = 1994;` shows a `Seek` into
-`idxYear` followed by an `IdxPKey`-driven `Seek` into `books`, instead of
-the `Rewind`/`Next` scan the earlier queries get.
+then 4 here, since neither query above touches `idxYear` at all (no
+WHERE clause on either). The last two queries in library.sql do use it,
+though, and their row order shows that: `WHERE year = 1994` is a single
+row so order isn't visible, but `WHERE year > 1985` comes back "Design
+Patterns" (1994) then "The Pragmatic Programmer" (1999) -- ascending by
+*year*, not by "id" (which would have put "The Pragmatic Programmer",
+id 1, first) -- because the index is what's actually being walked.
+`chidb library.cdb` then `EXPLAIN SELECT title FROM books WHERE year >
+1985;` confirms it directly: a `SeekGt` into `idxYear` followed by an
+`IdxPKey`-driven `Seek` into `books`, then a plain `Next` (not
+`Rewind`/`Next`) walking the index forward from that point on -- an
+equality test (`year = 1994`) compiles the same way but with `Seek`
+instead of `SeekGt`, and no trailing `Next` loop since there's at most
+one match. `WHERE year < 1990` (the second query, run before `idxYear`
+even exists) still falls back to the ordinary `Rewind`/`Next` full scan,
+which is why it and `SELECT title, author FROM books WHERE id = 3`
+return in "id" order above.
 
 A two-table NATURAL JOIN
 ------------------------
@@ -108,6 +118,7 @@ demos/sigma-push.sql:
     INSERT INTO courses VALUES(100, "Intro to Programming", 1);
     INSERT INTO courses VALUES(200, "Calculus", 2);
     INSERT INTO courses VALUES(300, "Advanced Calculus", 2);
+    CREATE INDEX idxCode ON courses(code);
     .opt "SELECT title FROM courses NATURAL JOIN departments WHERE courses.code > 150;"
     SELECT title FROM courses NATURAL JOIN departments WHERE courses.code > 150;
 
@@ -143,3 +154,14 @@ be checked (and rows discarded) before ever pairing that row with
 anything from `departments` -- normal `SELECT` execution (the second
 statement here, not `.opt`) always goes through this same rewrite first,
 not just when `.opt` is asked to show it.
+
+`idxCode` on `courses(code)` adds one more thing to see once the
+condition has been pushed down next to its own table: `chidb
+sigma-push.cdb` then `EXPLAIN SELECT title FROM courses NATURAL JOIN
+departments WHERE courses.code > 150;` shows a `SeekGt` into `idxCode`
+for the `courses` side of the join instead of a `Rewind`/`Next` scan --
+the pushed-down `Select(courses.code > int 150, Table(courses))` from
+the tree above isn't just discarding non-matching rows one at a time
+after fetching them, it compiles to skipping straight to the first
+matching entry in the index and walking forward from there, the same
+range-seek codegen the single-table case above uses.

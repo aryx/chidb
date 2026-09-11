@@ -1,0 +1,219 @@
+Debugging techniques used while implementing chidb
+====================================================
+
+This file is about *technique*, not the specific bugs (see git log / the
+"claude:" comments left in the source for those, and
+plan_chidb_implementation.md for the feature-level narrative). Kept here
+so the approach can be reused next time something in this DBM/codegen
+stack misbehaves in a way that's hard to reason about from reading the
+source alone.
+
+1. EXPLAIN is the single best debugging tool in this codebase
+------------------------------------------------------------------
+chidb compiles every SQL statement down to a flat, linear DBM bytecode
+program before running it (see notes_dbm_spec.txt) -- and the shell's
+built-in `EXPLAIN <sql>;` prints exactly that program, one instruction
+per line, without running it:
+
+  $ ./chidb somefile.cdb
+  chidb> EXPLAIN SELECT title FROM courses NATURAL JOIN departments WHERE courses.code > 150;
+  0|Integer|4|0|0|
+  1|OpenRead|2|0|0|
+  ...
+  7|SeekGt|2|18|3|
+  8|IdxPKey|2|4|0|
+  9|Seek|0|18|4|
+  10|Rewind|1|17|0|
+  ...
+
+This is worth reaching for *before* adding printf-style instrumentation
+or single-stepping the C code, for two reasons specific to this project:
+- The DBM is a tiny, fully-specified instruction set (~37 opcodes,
+  documented exactly in architecture.html / notes_dbm_spec.txt) with
+  explicit jump targets as literal instruction addresses (P2 for most
+  control-flow opcodes). A wrong jump target is visible by inspection --
+  you don't need to run anything to see that instruction 7's failure
+  edge (`18`) points at "close everything and halt" while instruction
+  17's failure edge should logically point at the same place but instead
+  points at `8` (the loop body) -- that mismatch alone was often the
+  entire bug.
+- Codegen bugs in this codebase are almost always about *which address a
+  jump targets*, not about wrong values in registers -- the register
+  machinery (Integer/String8/Column/Key/etc.) is comparatively simple
+  and easy to get right the first time; the control-flow wiring between
+  nested loops, seek-miss edges, and the shared cursor-closing tail is
+  where the actual complexity lives. So when a query returns wrong rows
+  (extra, missing, or duplicated), dump EXPLAIN output before doing
+  anything else, and manually trace the addresses by hand as if
+  executing the program on paper.
+
+2. `.opt "SQL"` and `.parse "SQL"`: inspect the tree, not just the bytecode
+-------------------------------------------------------------------------------
+One layer up from EXPLAIN, `.parse "SQL"` prints the SRA
+(sigma/pi/rho-style relational algebra) tree the parser produced, and
+`.opt "SQL"` prints it *twice* -- before and after `chidb_stmt_optimize`
+-- without compiling or running anything. This is the right tool
+specifically for sigma-pushing / optimizer bugs, where the question is
+"did the condition move to the node I expected", not "does the bytecode
+do the right thing" -- much cheaper to eyeball a 5-line tree diff than
+to reverse-engineer the same fact from a 20-instruction bytecode dump.
+
+Caveat from this session: both commands were completely broken (any
+indented output crashed the shell) until a pre-existing, unrelated
+buffer overflow in libchisql's `indent_print()` (`common.c`) was fixed
+-- an off-by-`ind` `vsnprintf` size argument that glibc's fortify check
+(`__vsnprintf_chk`) aborts on immediately, for any nonzero indent, before
+writing anything. If a "print the tree" command crashes on *every* real
+(non-trivial, indented) query but works on trivial ones, suspect the
+pretty-printer's own bounds arithmetic before suspecting the tree data
+itself.
+
+3. Write the smallest DBMF test that isolates the shape, not the query
+------------------------------------------------------------------------
+The `.dbmf` test format (testing.html; `USE dbfile` / SQL or raw DBM
+program / expected result rows / expected register values) makes it
+cheap to freeze one specific scenario as a permanent regression test the
+moment you find it, rather than just fixing the bug and moving on. This
+mattered concretely for the range-seek join bug (section 5 below): the
+failing case wasn't "some complicated multi-condition query", it was one
+specific *combination of shapes* --
+
+  a plain-scan outer loop + an inner side whose range Seek fails
+  completely (zero qualifying entries), while the *other* combination
+  (both a Rewind failing on a genuinely empty table) was already
+  correctly handled and passing.
+
+Once identified, it was worth deliberately writing out *all four*
+corners of that 2x2 (outer scan/range-seek x inner miss/no-miss-here),
+not just the one that happened to fail, as separate join-range-NNN.dbmf
+cases -- because the bug was specifically about which of two superficially
+similar failure edges a jump used, and only testing every corner
+distinguishes "fixed the specific case I found" from "fixed the actual
+distinction the code needs to make". See
+tests/files/dbm-programs/sql-select-join-range/ for the resulting suite;
+join-range-007.dbmf's comment documents which corner was the original
+repro.
+
+4. Cross-check byte-for-byte against the spec's own worked examples
+------------------------------------------------------------------------
+Two different parts of this implementation were verified this way, not
+just by "does the test pass":
+- btree.c's file header layout: check_btree_1b.c asserts exact byte
+  values at exact offsets for a freshly-created file. Rather than
+  guessing at the header format from prose alone, reading that test
+  file's assertions directly and matching them field-by-field was faster
+  and more reliable than re-deriving the layout from fileformat.html's
+  prose description.
+- sigma-pushing: assignment_opt.html includes one specific worked
+  example of a query tree before and after the optimizer's rewrite.
+  Running `.opt` against the literal same query and diffing the printed
+  tree against the page's own expected output caught a mistake in how
+  ambiguous (cross-table) conjuncts should be handled -- they stay at
+  the top, they don't get arbitrarily assigned to one side -- that would
+  have been easy to get subtly wrong and still pass a shallower
+  hand-written test.
+
+When a spec document gives a concrete worked example, treat it as a test
+oracle, not just documentation to read once.
+
+5. Worked case study: the range-seek "which failure edge" bug
+------------------------------------------------------------------------
+Full narrative, as an example of chaining (1) and (3) above into a single
+diagnosis.
+
+Symptom: `SELECT title, name FROM courses NATURAL JOIN departments WHERE
+departments.budget > 10000;` (no department has a budget that high) was
+returning one spurious row instead of zero, but only when the *outer*
+side of the join was a plain unconditioned scan and the *inner* side was
+the one with the failing range seek. The equivalent equality-seek case
+(already implemented and tested earlier in the same session) had no such
+bug.
+
+Step 1 -- get the bytecode, don't theorize from the C source first:
+
+  chidb> EXPLAIN SELECT title, name FROM courses NATURAL JOIN departments WHERE departments.budget > 10000;
+  ...
+  7|SeekGt|3|17|2|      <- seek into idxBudget; on failure, jump to 17
+  ...
+  16|Column|1|1|6|
+  17|Next|3|9|0|         <- the loop's own retry/advance instruction
+  18|Close|...
+
+Instruction 7's failure target (17) *is* the loop's advance instruction,
+not the address after it. That single fact, read directly off the
+EXPLAIN dump, was the entire bug -- no single-stepping or printf needed.
+
+Step 2 -- work out *why* that's wrong by simulating the DBM's own defined
+Next/Prev semantics for an unpositioned cursor (dbm-cursor.c: pos starts
+at -1; `Next` computes `moved = pos+1 < n`, then does `pos = pos+1` if
+so). Landing on instruction 17 with the cursor never positioned computes
+`moved = (-1+1 < n) = (0 < n)`, which is *true* whenever the index has
+any entries at all, regardless of whether any of them satisfy `> 10000`.
+So the cursor silently resumes as if mid-walk, from array index 0 -- the
+first (smallest) entry, unconditionally, once per outer row. This is
+exactly the shape of "silently wrong, not crashing", which is why it
+surfaced as an extra row rather than an assertion or crash.
+
+Contrast with why the *pre-existing*, already-correct SCAN-side code
+never had this problem: a `Rewind` failing IS defined to mean "the table
+is genuinely empty" (there's no boundary condition to miss -- Rewind
+doesn't take a search key), so jumping a Rewind's failure into the same
+loop's `Next` is safe there specifically because "0 < n" and "table is
+non-empty" are the same fact in that case. A range `Seek`'s failure means
+something different -- "no entry past this boundary" -- which can be
+true on an arbitrarily non-empty structure. The bug was applying a
+safety argument that holds for one opcode's failure semantics to a
+different opcode whose failure means something else, because both
+had been routed to the same regeneric "safe to jump into the loop"
+address during the SCAN-side code's original (correct, for SCAN) design.
+
+Step 3 -- fix by giving the two failure kinds distinct targets: a fresh
+`addr_done_inner` placed immediately *after* the emitted `Next`/`Prev`
+instruction (rather than reusing that instruction's own address,
+`addr_retry_inner`) for the "seek never found a starting point at all"
+edge, while per-row loop exhaustion (which really does mean "safe, just
+stop") keeps jumping to `addr_retry_inner` as before.
+
+Step 4 -- verify against exactly the shape that found it, not just the
+existing suite: re-ran the full `sql-select-join-range` batch (all 9
+cases, including the mirror-image "outer range-seek fails, inner is a
+plain scan" case that was *already* correct before this fix, to confirm
+the fix didn't regress the case that worked) plus the full `make check`
+suite, before considering it done.
+
+6. Distinguish "wrong" from "different but still correct" test failures
+------------------------------------------------------------------------
+Extending single-table index seeks from equality-only to ranges changed
+`sql-select-003.dbmf`'s query (`WHERE altcode > 9980`) from a full table
+scan to an index seek -- and its expected row order flipped (from
+primary-key order to altcode order), which at first looks exactly like a
+regression. SQL doesn't promise row order without `ORDER BY`, so before
+touching the fixture, the actual *set* of rows returned (not just the
+first diff) was extracted and compared against the pre-change output
+one row at a time -- confirming the four rows were identical, just
+reordered, and that the newly-taken code path (index seek) was doing the
+newly-*correct* thing (using the index that a WHERE clause could now
+legitimately use), not a bug. Only after that confirmation was the
+fixture's expected order updated, with a comment explaining why, instead
+of quietly "fixing" the test to hide a real behavior change.
+
+The general check: when a test starts failing right after a change that
+was *supposed to* alter which code path executes, first ask "is the
+oracle assuming an implementation detail (row order, iteration order,
+timing) that the spec never actually guaranteed?" before assuming the
+change introduced a bug.
+
+7. `grep -c "Your code goes here"` to audit stub coverage, not memory
+------------------------------------------------------------------------
+Early in this project, an initial assumption about which files were
+already-complete reference code versus stubbed assignment exercises
+turned out to be wrong (btree.c was assumed done, but was in fact 100%
+stubbed -- see plan_chidb_implementation.md's "Correction" note). The
+fix was mechanical and cheap enough that it should just be step one
+whenever picking up an unfamiliar assignment-shaped codebase like this:
+
+  grep -c "Your code goes here" src/libchidb/*.c
+
+A single grep across every source file settles "which files actually
+need work" as a fact, rather than as an inference from skimming a couple
+of files and generalizing.

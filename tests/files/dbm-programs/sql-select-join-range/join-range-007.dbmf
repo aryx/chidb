@@ -1,0 +1,26 @@
+# Test JOIN-RANGE-7: the inner (right) side's range seek finds nothing
+# at all -- departments.budget has no row past 10000 -- while the outer
+# (left) side is a plain, unconditioned scan over all of courses.
+#
+# claude: this is the exact shape that caught a real bug while writing
+# this feature: the initial SeekGt failing was (wrongly) routed to the
+# *retry* address (the loop's own Next instruction) instead of the
+# address *after* it. Next()/Prev() only degrade safely to "no more" for
+# a not-yet-positioned cursor when the underlying array is empty (true
+# for a Rewind failing on a genuinely empty table); a range Seek can
+# fail on a perfectly non-empty index -- there just isn't an entry past
+# the boundary -- so jumping into Next from that never-positioned state
+# incorrectly stepped onto whatever entry sits at the start of the
+# (unfiltered) array and silently resumed as if the walk were already
+# underway, for every outer row. Caught by exactly this query producing
+# one spurious extra output row instead of zero.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE departments.budget > 10000;
+
+%%
+
+# No query results

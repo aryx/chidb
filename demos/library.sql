@@ -8,3 +8,4 @@ SELECT title FROM books WHERE year < 1990;
 SELECT title, author FROM books WHERE id = 3;
 CREATE INDEX idxYear ON books(year);
 SELECT title FROM books WHERE year = 1994;
+SELECT title FROM books WHERE year > 1985;

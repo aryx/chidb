@@ -1,0 +1,18 @@
+# Test JOIN-RANGE-2: range condition on the right (inner) table only.
+#
+# Same tables as join-range-001.dbmf. departments.budget > 250 seeks
+# idxBudget instead of scanning departments; courses (the outer/left
+# side, unconditioned here) is a plain full scan, so rows come back in
+# courses' own code order (100, then 400 -- 200/300 don't match any
+# department in the budget>250 range).
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE departments.budget > 250;
+
+%%
+
+"Intro to Programming"  "Engineering"
+"Thermodynamics"        "Physics"

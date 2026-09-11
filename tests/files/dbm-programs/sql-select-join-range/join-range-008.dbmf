@@ -1,0 +1,15 @@
+# Test JOIN-RANGE-8: outer (left) range seek has matches, but the inner
+# (right) range seek finds nothing at all -- exercises the "inner Seek
+# fails while a real nested loop (both sides ACC_RANGESEEK) is otherwise
+# in play" combination specifically (see join-range-007.dbmf for the
+# same failure mode with a plain-scan outer instead).
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 150 AND departments.budget > 10000;
+
+%%
+
+# No query results

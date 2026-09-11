@@ -4,6 +4,16 @@
 #
 #   CREATE TABLE numbers(code INTEGER PRIMARY KEY, textcode TEXT, altcode INTEGER);
 #
+# 1table-largebtree.cdb also has an index on altcode (idxNumbers, per
+# testing.html), so this WHERE (a range comparison on the indexed column,
+# not the primary key) now compiles to an index seek that walks the
+# altcode index forward from 9980, instead of a full table scan filtered
+# per row. Same 4 rows either way, but in altcode order rather than the
+# table's own code/primary-key order -- both are valid result orders for
+# a query with no ORDER BY, so this expected order was updated to match
+# rather than fighting the (correct) new plan. claude: previously listed
+# in code order (597, 6853, 7912, 9861), from before the optimizer used
+# this index for anything but an exact equality match.
 
 USE 1table-largebtree.cdb
 
@@ -13,8 +23,8 @@ SELECT code FROM numbers WHERE altcode > 9980;
 
 %%
 
-597
-6853
-7912
 9861
+6853
+597
+7912
 

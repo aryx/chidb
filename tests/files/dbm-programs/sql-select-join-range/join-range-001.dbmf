@@ -1,0 +1,26 @@
+# Test JOIN-RANGE-1: range condition on the left (outer) table only.
+#
+# Assumes (see tests/files/databases/join-range-fixture.cdb):
+#   CREATE TABLE departments(id INTEGER PRIMARY KEY, name TEXT, budget INTEGER);
+#   CREATE TABLE courses(code INTEGER PRIMARY KEY, title TEXT, id INTEGER);
+#   CREATE INDEX idxCode ON courses(code);
+#   CREATE INDEX idxBudget ON departments(budget);
+#
+# courses.code > 150 is a range comparison on courses' own indexed
+# column: compiles to an index seek (SeekGt) that walks idxCode forward
+# from 150, instead of a full Rewind/Next scan of courses -- see
+# codegen_select_join's ACC_RANGESEEK. Rows come back in ascending
+# code/idxCode order (200, 300, 400), not table-insertion order, since
+# the outer loop is now driven by the index.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 150;
+
+%%
+
+"Calculus"           "Math"
+"Advanced Calculus"  "Math"
+"Thermodynamics"     "Physics"

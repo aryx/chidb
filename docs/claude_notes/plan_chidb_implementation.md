@@ -160,12 +160,86 @@ miss/no-match combination for each (index miss on one side with the
 other a hit; both indexed with one missing) -- all against manually
 computed expected row sets, matched exactly, no crashes.
 
+### Index seeks extended to range comparisons (extra credit #1)
+
+claude: both `codegen_select_indexed` (single-table) and
+`codegen_select_join` (either side of a `NATURAL JOIN`) previously only
+recognized a top-level *equality* against an indexed column. Extended
+both to also recognize `>`, `>=`, `<`, and `<=` (`resolve_comparison`
+already produced an `opcode_t` for any of the six comparison operators;
+only the equality one was ever passed on to seek-planning before). New
+pieces:
+- `IndexSeekKind` (`INDEX_EQ`/`GT`/`GE`/`LT`/`LE`), `index_seek_kind()`
+  (maps a *negated* comparison opcode -- the one the filter check would
+  use to reject a row -- back to which seek kind makes the condition
+  true, since `resolve_comparison` stores the negation for filtering
+  purposes), `index_seek_opcode()` (kind -> `Op_Seek`/`SeekGt`/`SeekGe`/
+  `SeekLt`/`SeekLe`), and `index_seek_walks_forward()` (GT/GE walk the
+  index forward with `Next` from the seek point; LT/LE walk it backward
+  with `Prev`, since a chidb index cursor materializes entries in
+  ascending key order -- see dbm-cursor.h -- so "everything below X"
+  starts at the seek point and heads toward index 0).
+- Unlike an equality seek (at most one matching entry, so the single-row
+  case from before still applies unchanged), a range seek needs an
+  actual loop: seek once to the boundary, then `Next`/`Prev` from there
+  until the underlying cursor itself reports "no more" (chidb's B-Tree
+  index order already stops the walk at the right place -- there's no
+  separate upper/lower-bound check against the literal on every
+  iteration, since e.g. `SeekGt` positions past every non-qualifying
+  entry and `Next` never revisits one on the wrong side of it).
+- `codegen_select_join`'s `SideAccess`/`plan_side_access` gained a third
+  case (`ACC_RANGESEEK`, alongside the existing `ACC_SCAN`/`ACC_EQSEEK`):
+  same up-front cursor-opening discipline as the equality-seek work
+  above, but now contributing an actual loop (like `ACC_SCAN` does, just
+  over the index cursor and its `IdxPKey`+`Seek(table)` sync step instead
+  of the table cursor directly) rather than a single unconditional
+  positioning step.
+- Found and fixed a real bug this way, entirely by `EXPLAIN`-tracing a
+  spurious extra output row: a range `Seek`'s *failure* edge (no
+  qualifying entry at all) was wired to the same address as a per-row
+  `Next`/`Prev` failure (naturally exhausted the walk), both of which had
+  been sharing the loop's own advance instruction as "safe to jump into
+  and let it report no-more". That's true for `Rewind` failing on a
+  genuinely empty table (an unpositioned cursor `Next`-ing is defined as
+  landing on entry 0, which coincides with "empty" only when there truly
+  is no entry 0), but not for a range `Seek` failing on a *non-empty*
+  index -- there's a real entry 0, it's simply on the wrong side of the
+  boundary, so jumping into `Next` from the never-positioned cursor
+  silently resumed the walk from there instead of correctly reporting
+  zero matches. Fixed by giving the "seek failed outright" edge its own
+  target, right after the loop's advance instruction, distinct from the
+  address the advance instruction itself jumps back to. Full writeup of
+  the diagnosis process in
+  [notes_debugging_techniques.txt](notes_debugging_techniques.txt).
+- New fixtures/tests: `sql-select-012.dbmf` through `015.dbmf`
+  (single-table ranges, including a clean total-miss), and a new
+  `tests/files/databases/join-range-fixture.cdb` +
+  `tests/files/dbm-programs/sql-select-join-range/join-range-001.dbmf`
+  through `009.dbmf` (9 cases: outer-range-only, inner-range-only,
+  both-range, EQ+RANGE mixed both ways, and 4 miss/edge combinations --
+  the bug above was caught by exactly one of these, an inner-range total
+  miss under a plain-scan outer). `make check`: still 100% (124 DBMF
+  cases total at this point, up from 111).
+- `demos/library.sql` gained a `WHERE year > 1985` range query against
+  the existing `idxYear` index, and `demos/sigma-push.sql` gained a
+  `CREATE INDEX idxCode ON courses(code)` so its existing `courses.code >
+  150` sigma-pushed condition now demonstrates a join-side range seek
+  too, not just the tree rewrite -- see demos/session.txt for the
+  `EXPLAIN` output confirming both.
+
 Not implemented (out of scope for this pass, in order of likely value if
 resumed):
-- Index-based codegen (single-table or join) only covers a single
-  top-level equality test (`indexed-col = val` / `val = indexed-col`) --
-  e.g. `WHERE indexedcol > val`, or an indexable equality ANDed with
-  anything else, still does a full scan/full filter check on that side.
+- Index-based codegen (single-table or join) still requires the seekable
+  side's *entire* pushed condition to be exactly one comparison against
+  an indexed column (`=`, `>`, `>=`, `<`, or `<=`) -- `ncmp == 1` is
+  checked before seek-planning even looks at what the comparison is
+  (`codegen.c`'s call sites gate on it directly). So an indexable
+  comparison ANDed with anything else, including a *second* bound on the
+  very same column (`WHERE indexedcol > 10 AND indexedcol < 20`, a
+  two-sided range that could in principle be one bounded forward seek),
+  falls back to a full scan with both conjuncts checked as ordinary
+  filters -- there's no partial credit for seeking on one side and
+  filtering the other.
 - Only two-way NATURAL JOIN of two base tables -- no 3-way joins, no
   `JOIN ... ON`/`USING`, no outer joins, no `UNION`/`INTERSECT`/`EXCEPT`.
   `codegen_select_join` rejects anything where either side of the
@@ -180,16 +254,12 @@ resumed):
 - Cursors are O(n) space / not amortized O(1) Next (see dbm-cursor.h) --
   explicitly sanctioned as a first-pass approximation by
   assignment_dbm.html step 3, correct but not the bonus-credit shape.
-- The shell's `.parse "SQL"` and `.opt "SQL"` commands crash with a glibc
-  "buffer overflow detected" abort as soon as they try to print the parsed
-  statement (`Project(*** buffer overflow detected ***`). Confirmed
-  pre-existing and unrelated to this pass's changes: `.parse` alone (no
-  optimizer call involved) reproduces it identically, and it's entirely
-  inside `src/libchisql/*.c`'s `SRA_print`/`RA_print`/`Condition_print`
-  family (`indent_print` in common.c, most likely a fixed-size buffer)
-  -- code this task never touched. Left unfixed as out of scope (the ask
-  was the chidb DBM/codegen/optimizer assignment, not the pretty-printer);
-  worth a look if the shell's `.parse`/`.opt` become load-bearing later.
+- ~~The shell's `.parse "SQL"` and `.opt "SQL"` commands crash~~ -- **fixed**
+  (see the "Fix buffer overflow in libchisql's indent_print" commit): an
+  off-by-`ind` `vsnprintf` size argument in `common.c`'s `indent_print()`
+  aborted on any indented print, i.e. any real query. Needed fixing to
+  demonstrate sigma-pushing via `.opt` at all, so it stopped being
+  out-of-scope partway through this effort.
 - `CHIDB_EDUPLICATE` (chidbInt.h, private) and `CHIDB_EMISUSE` (chidb.h,
   public) are both numerically `8` in the pre-existing (not modified by
   this pass) constant tables -- so the shell prints "API used

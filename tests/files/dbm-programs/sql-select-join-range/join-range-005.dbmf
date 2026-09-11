@@ -1,0 +1,13 @@
+# Test JOIN-RANGE-5: range on the left (outer, ACC_RANGESEEK) combined
+# with equality on the right (inner, ACC_EQSEEK -- no loop for that side).
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 150 AND departments.budget = 200;
+
+%%
+
+"Calculus"           "Math"
+"Advanced Calculus"  "Math"

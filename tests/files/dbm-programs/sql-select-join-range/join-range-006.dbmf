@@ -1,0 +1,13 @@
+# Test JOIN-RANGE-6: the outer (left) side's range seek finds nothing at
+# all -- courses.code has no row past 10000. The whole join is zero rows
+# regardless of the (here unconditioned) right side.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 10000;
+
+%%
+
+# No query results

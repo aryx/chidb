@@ -1,0 +1,18 @@
+# Test SELECT-13
+#
+# Assumes this table:
+#
+#   CREATE TABLE numbers(code INTEGER PRIMARY KEY, textcode TEXT, altcode INTEGER);
+#
+# `<` on the indexed altcode column: index seek (SeekLt) walking
+# backward from the boundary.
+
+USE 1table-largebtree.cdb
+
+%%
+
+SELECT code FROM numbers WHERE altcode < 20;
+
+%%
+
+241

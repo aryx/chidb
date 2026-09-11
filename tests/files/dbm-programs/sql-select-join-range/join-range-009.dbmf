@@ -1,0 +1,14 @@
+# Test JOIN-RANGE-9: outer (left) range seek finds nothing at all, even
+# though the (unreached) inner side's own range would otherwise match --
+# confirms the outer failure short-circuits before the inner side is
+# ever touched.
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 10000 AND departments.budget > 250;
+
+%%
+
+# No query results

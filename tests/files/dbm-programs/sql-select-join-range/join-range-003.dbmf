@@ -1,0 +1,18 @@
+# Test JOIN-RANGE-3: range conditions on BOTH tables at once.
+#
+# Same tables as join-range-001.dbmf. Both sides seek their own index
+# (idxCode for courses, idxBudget for departments); this compiles to a
+# real nested loop (courses' walk drives the outer, departments' walk
+# the inner) since a range can match more than one row on each side,
+# unlike two equalities (which would compile to a single check with no
+# loop at all -- see join-range-004/005.dbmf for the equality+range mix).
+
+USE join-range-fixture.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments WHERE courses.code > 150 AND departments.budget > 250;
+
+%%
+
+"Thermodynamics"  "Physics"

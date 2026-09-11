@@ -38,8 +38,10 @@
 - CREATE TABLE, INSERT, single-table SELECT with an optional WHERE
 - CREATE INDEX with population from the table's existing rows, INSERT
   keeps every index on a table up to date, and a single top-level
-  `indexedcol = val` WHERE compiles to an index seek instead of a full
-  scan (assignment_opt.html "Supporting Indexes")
+  `indexedcol OP val` WHERE (`=`, `>`, `>=`, `<`, or `<=`) compiles to an
+  index seek instead of a full scan (assignment_opt.html "Supporting
+  Indexes"; the four range comparisons past plain equality are extra
+  credit, see the "extra credit" entry below)
 - two-way NATURAL JOIN (nested-loop join, qualified/unqualified column
   names, `*` coalesces the shared join column) -- no upstream test
   suite exists for this, so built one: tests/files/databases/
@@ -66,6 +68,36 @@
 - make check: 111/111 DBMF cases, with the optimizer live for every
   query, not just behind `.opt`
 
+** extra credit: range comparisons through index seeks
+- extended both codegen_select_indexed (single-table) and
+  codegen_select_join (either side of a NATURAL JOIN) from
+  equality-only index seeks to also cover `>`, `>=`, `<`, and `<=`:
+  IndexSeekKind/index_seek_kind/index_seek_opcode map a comparison to
+  the right DBM seek opcode (Seek/SeekGt/SeekGe/SeekLt/SeekLe) and walk
+  direction (Next for ascending GT/GE, Prev for descending LT/LE)
+- codegen_select_join's SideAccess/plan_side_access gained a third case
+  (ACC_RANGESEEK, alongside ACC_SCAN/ACC_EQSEEK): unlike an equality
+  seek's single unconditional position, a range seek now drives an
+  actual loop over the index cursor, still opening every cursor up
+  front like the equality-seek work above
+- found and fixed a real bug this way: a range seek's outright-failure
+  edge (no qualifying entry at all) had been wired to the same jump
+  target as a per-row Next/Prev loop-exhaustion edge, which is only
+  safe for Rewind (an empty table) and not for a range Seek (a
+  non-empty index with nothing past the boundary) -- diagnosed via
+  EXPLAIN bytecode tracing, see
+  docs/claude_notes/notes_debugging_techniques.txt section 5 for the
+  full writeup
+- new tests: sql-select-012.dbmf through 015.dbmf (single-table
+  ranges), tests/files/databases/join-range-fixture.cdb +
+  join-range-001.dbmf through 009.dbmf (9 join-range cases covering
+  both sides, EQ+RANGE mixes, and every miss/edge combination -- one of
+  which is exactly the case that caught the bug above)
+- demos/library.sql and demos/sigma-push.sql extended with `x > n`
+  examples against an indexed column, single-table and join-side
+  respectively; demos/session.txt's EXPLAIN commentary updated to match
+- make check: 124/124 DBMF cases (up from 111)
+
 ** bugfix
 - fixed a pre-existing, unrelated buffer overflow in libchisql's
   indent_print() (an off-by-`ind` vsnprintf size argument) that crashed
@@ -74,19 +106,22 @@
 
 ** tests / demos
 - demos/ with three runnable, verified (not mocked-up) shell sessions:
-  library.sql (CREATE TABLE/INSERT/SELECT/CREATE INDEX), join.sql
-  (NATURAL JOIN with aliases), sigma-push.sql (.opt showing the
-  optimizer's before/after tree)
+  library.sql (CREATE TABLE/INSERT/SELECT/CREATE INDEX, plus an indexed
+  `year > n` range query), join.sql (NATURAL JOIN with aliases),
+  sigma-push.sql (.opt showing the optimizer's before/after tree, then
+  an indexed `code > n` range query on the pushed-down side)
 - docs/claude_notes/: plan_chidb_implementation.md (status + what's not
   done), notes_dbm_spec.txt + notes_file_format.txt (opcode/file-format
   spec pulled from chi.cs.uchicago.edu/chidb, not shipped in this repo),
   notes_sqlite.txt (how close chidb's architecture actually is to real
-  SQLite)
+  SQLite), notes_debugging_techniques.txt (EXPLAIN-bytecode tracing and
+  the other techniques used to find bugs in this codebase)
 
 ** not done
-- using an index for a join side isn't extended past a single top-level
-  equality (same limit as the single-table case); no index use at all
-  for anything but equality
+- an indexed comparison ANDed with anything else, including a second
+  bound on the same column (a two-sided range), still falls back to a
+  full scan with both conjuncts checked as filters -- no partial credit
+  for seeking on one side and filtering the other
 - only two-way NATURAL JOIN of base tables -- no JOIN...ON/USING, outer
   joins, 3-way joins, or UNION/INTERSECT/EXCEPT
 - sigma-pushing only recognizes the one exact shape named above

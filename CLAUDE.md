@@ -15,20 +15,23 @@ optimization** — `btree.c`, `dbm-cursor.[ch]`, `dbm-ops.c`, `codegen.c` (CREAT
 with population, INSERT with index maintenance, single-table SELECT and two-way NATURAL JOIN, each
 with a full conjunction of `column OP literal` WHERE clauses), and `optimizer.c` (sigma-pushing for
 NATURAL JOIN queries, verified against `assignment_opt.html`'s own worked example) all have real
-implementations now. A single-table or per-join-side equality test on an indexed column compiles to
-an index seek instead of a full scan — including both sides of a join independently, which for a
-fully-indexed two-equality join compiles to zero loop instructions at all (see
-`codegen_select_join`'s file comment). `make check` is green (5/5 suites, 111 DBMF cases) — with the
-optimizer live for every query. Also fixed along the way: a pre-existing, unrelated buffer-overflow
-crash in `libchisql`'s pretty-printer that broke the shell's `.parse`/`.opt` commands (see
-`src/libchisql/common.c`'s `indent_print()`), and a real gap where `CREATE INDEX` on a non-integer
-column silently built a corrupt index instead of erroring. See
-`docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. the remaining gaps
-(equality-only index use, 3-way joins, and a few others), `changes.txt` for the project's full
-history back to its 2009 origin, and `docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode
-spec pulled from chi.cs.uchicago.edu/chidb. The full site (not shipped upstream, and not reachable
-via HTTPS from this sandbox — mirrored over plain HTTP) is available offline under
-`docs/chidb-website/`, see its `README.md`. Small runnable examples are under `demos/`.
+implementations now. A single-table or per-join-side comparison (`=`, `>`, `>=`, `<`, or `<=`) on an
+indexed column compiles to an index seek instead of a full scan — including both sides of a join
+independently, which for a fully-indexed two-equality join compiles to zero loop instructions at all
+(see `codegen_select_join`'s file comment), and for a range comparison compiles to a seek plus a
+`Next`/`Prev` walk instead of a full scan with a filter check. `make check` is green (5/5 suites, 124
+DBMF cases) — with the optimizer live for every query. Also fixed along the way: a pre-existing,
+unrelated buffer-overflow crash in `libchisql`'s pretty-printer that broke the shell's `.parse`/`.opt`
+commands (see `src/libchisql/common.c`'s `indent_print()`), and a real gap where `CREATE INDEX` on a
+non-integer column silently built a corrupt index instead of erroring. See
+`docs/claude_notes/plan_chidb_implementation.md` for exactly what's done vs. the remaining gaps (an
+indexed comparison ANDed with anything else, 3-way joins, and a few others), `changes.txt` for the
+project's full history back to its 2009 origin, `docs/claude_notes/notes_debugging_techniques.txt`
+for how bugs in this codebase are best diagnosed (EXPLAIN-bytecode tracing especially), and
+`docs/claude_notes/notes_*.txt` for the file-format/DBM-opcode spec pulled from
+chi.cs.uchicago.edu/chidb. The full site (not shipped upstream, and not reachable via HTTPS from this
+sandbox — mirrored over plain HTTP) is available offline under `docs/chidb-website/`, see its
+`README.md`. Small runnable examples are under `demos/`.
 Before assuming a SQL feature works or doesn't, check the plan file's "Not implemented" list first.
 
 ## Build
