@@ -1,0 +1,14 @@
+# Test SELECT-JOIN-3
+#
+# Same tables as sql-select-join-001.dbmf. Both the projected columns and
+# the WHERE clause use table-qualified names (table.column).
+
+USE join-courses-departments.cdb
+
+%%
+
+SELECT courses.title, departments.name FROM courses NATURAL JOIN departments WHERE departments.name = "Math";
+
+%%
+
+"Calculus"  "Math"

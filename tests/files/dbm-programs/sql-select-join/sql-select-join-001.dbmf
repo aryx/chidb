@@ -1,0 +1,22 @@
+# Test SELECT-JOIN-1
+#
+# Assumes these tables (see tests/files/databases/join-courses-departments.cdb):
+#
+#   CREATE TABLE departments(id INTEGER PRIMARY KEY, name TEXT);
+#   CREATE TABLE courses(code INTEGER PRIMARY KEY, title TEXT, id INTEGER);
+#
+# courses.id references departments.id; course 300 ("Orphan Course") has no
+# matching department, and department 3 ("Physics") has no matching course,
+# so neither should appear in a natural join. SELECT * coalesces the shared
+# "id" column into a single copy.
+
+USE join-courses-departments.cdb
+
+%%
+
+SELECT * FROM courses NATURAL JOIN departments;
+
+%%
+
+100  "Intro to Programming"   1  "Engineering"
+200  "Calculus"               2  "Math"

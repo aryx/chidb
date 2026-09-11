@@ -61,3 +61,35 @@ that shape and does compile to an index seek -- `chidb library.cdb` then
 `EXPLAIN SELECT title FROM books WHERE year = 1994;` shows a `Seek` into
 `idxYear` followed by an `IdxPKey`-driven `Seek` into `books`, instead of
 the `Rewind`/`Next` scan the earlier queries get.
+
+A two-table NATURAL JOIN
+------------------------
+
+    $ ./chidb /tmp/join.cdb < demos/join.sql
+
+demos/join.sql:
+
+    CREATE TABLE departments(id INTEGER PRIMARY KEY, name TEXT);
+    CREATE TABLE courses(code INTEGER PRIMARY KEY, title TEXT, id INTEGER);
+    INSERT INTO departments VALUES(1, "Engineering");
+    INSERT INTO departments VALUES(2, "Math");
+    INSERT INTO departments VALUES(3, "Physics");
+    INSERT INTO courses VALUES(100, "Intro to Programming", 1);
+    INSERT INTO courses VALUES(200, "Calculus", 2);
+    INSERT INTO courses VALUES(300, "Orphan Course", 99);
+    SELECT * FROM courses NATURAL JOIN departments;
+    SELECT c.title, d.name FROM courses c NATURAL JOIN departments d WHERE d.name = "Math";
+
+output:
+
+    100|Intro to Programming|1|Engineering
+    200|Calculus|2|Math
+    Calculus|Math
+
+`courses` and `departments` share a column name, "id" -- that's what
+`NATURAL JOIN` matches on. Course 300 ("Orphan Course", id 99) has no
+matching department and department 3 ("Physics") has no matching course,
+so an (inner) natural join drops both; `SELECT *` shows "id" only once
+(coalesced), not once per table. The second query shows a table alias
+(`courses c`) with a table-qualified WHERE (`d.name = "Math"`) on the
+right-hand table.

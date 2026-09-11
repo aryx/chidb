@@ -9,12 +9,15 @@ repository root `CLAUDE.md` for build instructions):
 ```
 
 - `library.sql` — creates a small `books` table, inserts a few rows, runs `SELECT` with and
-  without a `WHERE` clause, and creates an index.
-- `session.txt` — the real output of running `library.sql` above (plus a couple of interactive
+  without a `WHERE` clause, and creates an index (and, at the end, a `WHERE` that ends up using it).
+- `join.sql` — two tables sharing a column name, joined with `NATURAL JOIN`, including a table
+  alias and a table-qualified `WHERE`.
+- `session.txt` — the real output of running both scripts above (plus a couple of interactive
   follow-up queries against the resulting file), with commentary. Not a mock-up.
 
-Known gaps that don't show up in this demo (see
+Known gaps that don't show up in these demos (see
 [`../docs/claude_notes/plan_chidb_implementation.md`](../docs/claude_notes/plan_chidb_implementation.md)
-for the full picture): no `NATURAL JOIN`, and only a single top-level `WHERE indexedcol = val` (or
-`val = indexedcol`) equality test compiles to an index seek — anything else (`>`, an indexed column
-ANDed with another condition, etc.) still falls back to a full table scan in primary-key order.
+for the full picture): only a single top-level `WHERE indexedcol = val` (or `val = indexedcol`)
+equality test compiles to an index seek — anything else (`>`, an indexed column ANDed with another
+condition, a join) still falls back to a full table scan in primary-key order; and only two-way
+`NATURAL JOIN` of base tables is supported (no `JOIN ... ON`/`USING`, outer joins, or 3-way joins).

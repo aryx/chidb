@@ -46,16 +46,22 @@
 #include "dbm.h"
 #include "util.h"
 
-/* claude: covers assignment_codegen.html steps 1-4 (schema loading is in
+/* claude: covers assignment_codegen.html steps 1-5 (schema loading is in
  * util.c/api.c) plus all of assignment_opt.html's "Supporting Indexes"
  * section: CREATE INDEX + population, keeping indexes up to date on
  * INSERT, and compiling `indexed-col = val` / `val = indexed-col` WHERE
- * clauses into an index seek instead of a full scan.
- * NOT implemented: NATURAL JOIN (assignment_codegen.html step 5) and
- * sigma-pushing (the other half of assignment_opt.html, which only
- * matters once joins exist) -- see
- * docs/claude_notes/plan_chidb_implementation.md. Every SELECT here is a
- * single-table query with at most one `column OP literal` WHERE clause. */
+ * clauses into an index seek instead of a full scan. Two-way NATURAL
+ * JOIN is supported (codegen_select_join below), including qualified
+ * column names, but every SELECT -- joined or not -- still allows at
+ * most one `column OP literal` WHERE clause (assignment_codegen.html
+ * step 2's restriction, which step 5 says to keep).
+ * NOT implemented: sigma-pushing (the other half of assignment_opt.html
+ * -- rewriting `Select(cond, NaturalJoin(t1,t2))` into
+ * `NaturalJoin(Select(cond,t1), t2)`; since query execution already
+ * evaluates the WHERE inside the join's inner loop rather than after a
+ * materialized join, the only thing pushing would actually buy here is
+ * using an index for that inner scan, which isn't done either -- see
+ * docs/claude_notes/plan_chidb_implementation.md). */
 
 /* Emits `opcode p1 p2 p3 p4` at *pc, then advances *pc; returns the
  * address the instruction was placed at (handy for later patching a
@@ -423,6 +429,334 @@ static int codegen_select_indexed(chidb_stmt *stmt, chidb_schema_item_t *tbl, ch
     return CHIDB_OK;
 }
 
+/* --- SELECT ... NATURAL JOIN ------------------------------------------- */
+
+/* A column reference resolved against one of the two tables in a
+ * two-way NATURAL JOIN: side 0 = the left table, 1 = the right. */
+typedef struct { int side; int idx; } RCol;
+
+static bool resolve_join_column(ColumnReference_t *ref,
+                                 Column_t *cols1, const char *name1, const char *alias1,
+                                 Column_t *cols2, const char *name2, const char *alias2,
+                                 RCol *out, enum data_type *type_out)
+{
+    if (ref->tableName)
+    {
+        if (strcasecmp(ref->tableName, name1) == 0 || (alias1 && strcasecmp(ref->tableName, alias1) == 0))
+        {
+            int idx = column_index_by_name(cols1, ref->columnName, type_out);
+            if (idx < 0)
+                return false;
+            *out = (RCol){ 0, idx };
+            return true;
+        }
+        if (strcasecmp(ref->tableName, name2) == 0 || (alias2 && strcasecmp(ref->tableName, alias2) == 0))
+        {
+            int idx = column_index_by_name(cols2, ref->columnName, type_out);
+            if (idx < 0)
+                return false;
+            *out = (RCol){ 1, idx };
+            return true;
+        }
+        return false;
+    }
+
+    /* Unqualified: a name shared by both tables is -- by the definition of
+     * NATURAL JOIN -- a join column, equal on both sides in any matching
+     * row, so resolving it to the left table's copy is always correct. A
+     * name that appears in only one of the two tables can't collide with
+     * anything in the other (again by that same definition), so it's
+     * unambiguous too. */
+    int idx1 = column_index_by_name(cols1, ref->columnName, type_out);
+    if (idx1 >= 0)
+    {
+        *out = (RCol){ 0, idx1 };
+        return true;
+    }
+    int idx2 = column_index_by_name(cols2, ref->columnName, type_out);
+    if (idx2 >= 0)
+    {
+        *out = (RCol){ 1, idx2 };
+        return true;
+    }
+    return false;
+}
+
+static void emit_rcol(chidb_stmt *stmt, int *pc, RCol rc, Column_t *cols1, Column_t *cols2, int32_t reg)
+{
+    Column_t *cols = rc.side == 0 ? cols1 : cols2;
+    int32_t cursor = rc.side == 0 ? 0 : 1;
+    if (column_is_primary_key(cols, rc.idx))
+        emit(stmt, pc, Op_Key, cursor, reg, 0, NULL);
+    else
+        emit(stmt, pc, Op_Column, cursor, rc.idx, reg, NULL);
+}
+
+/* claude: assignment_codegen.html step 5 (two-way NATURAL JOIN, columns
+ * optionally qualified with a table name/alias) combined with step 2's
+ * WHERE restriction ("always have a single condition") -- there is no
+ * NATURAL-JOIN-specific test suite published upstream
+ * (assignment_codegen.html: "Tests for NATURAL JOIN are not currently
+ * available"), so this is validated against a fixture built for this
+ * pass; see tests/files/dbm-programs/sql-select-join/.
+ *
+ * Compiles to a nested-loop join: cursor 0 = left table, cursor 1 =
+ * right table, rewind cursor 0 once, and for every one of its rows
+ * rewind cursor 1 and scan all of its rows, testing (a) every
+ * same-named-column pair for equality -- that's the actual "natural"
+ * part -- and (b) the optional WHERE, before emitting a result row.
+ * Both kinds of test are compiled as negated jumps straight to the
+ * `Next cursor 1` instruction, exactly like the single-table scan's
+ * WHERE handling (see codegen_select below). Sigma-pushing (using an
+ * index instead of a full scan on either side) is not implemented --
+ * see docs/claude_notes/plan_chidb_implementation.md. */
+static int codegen_select_join(chidb_stmt *stmt, SRA_t *table_sra, Expression_t *expr_list, Condition_t *cond)
+{
+    chidb *db = stmt->db;
+    SRA_t *sra1 = table_sra->binary.sra1, *sra2 = table_sra->binary.sra2;
+    if (sra1->t != SRA_TABLE || sra2->t != SRA_TABLE)
+        return CHIDB_EINVALIDSQL; /* only a two-way join of base tables */
+
+    const char *name1 = sra1->table.ref->table_name, *alias1 = sra1->table.ref->alias;
+    const char *name2 = sra2->table.ref->table_name, *alias2 = sra2->table.ref->alias;
+
+    chidb_schema_item_t *tbl1 = chidb_schema_find_table(db, name1);
+    chidb_schema_item_t *tbl2 = chidb_schema_find_table(db, name2);
+    if (!tbl1 || !tbl2)
+        return CHIDB_EINVALIDSQL;
+
+    chisql_statement_t *parsed1, *parsed2;
+    Column_t *cols1 = table_columns(tbl1, &parsed1);
+    Column_t *cols2 = table_columns(tbl2, &parsed2);
+    int ncols1 = column_count(cols1), ncols2 = column_count(cols2);
+
+    /* Natural-join column pairs: every name shared by both tables. */
+    int *join1 = malloc(sizeof(int) * ncols1);
+    int *join2 = malloc(sizeof(int) * ncols1);
+    int npairs = 0;
+    {
+        int i = 0;
+        for (Column_t *c = cols1; c; c = c->next, i++)
+        {
+            int j = column_index_by_name(cols2, c->name, NULL);
+            if (j >= 0)
+            {
+                join1[npairs] = i;
+                join2[npairs] = j;
+                npairs++;
+            }
+        }
+    }
+
+    bool star = (expr_list->next == NULL && expr_list->t == EXPR_TERM &&
+                 expr_list->expr.term.t == TERM_COLREF &&
+                 strcmp(expr_list->expr.term.ref->columnName, "*") == 0);
+
+    int nout;
+    RCol *out;
+    if (star)
+    {
+        /* `*` coalesces the natural-join columns, same as real SQL: every
+         * column of the left table, then only the right table's columns
+         * that AREN'T one of the join columns. */
+        nout = ncols1;
+        for (int i = 0; i < ncols2; i++)
+        {
+            bool isjoin = false;
+            for (int p = 0; p < npairs; p++)
+                if (join2[p] == i) { isjoin = true; break; }
+            if (!isjoin)
+                nout++;
+        }
+        out = malloc(sizeof(RCol) * nout);
+        int k = 0;
+        for (int i = 0; i < ncols1; i++)
+            out[k++] = (RCol){ 0, i };
+        for (int i = 0; i < ncols2; i++)
+        {
+            bool isjoin = false;
+            for (int p = 0; p < npairs; p++)
+                if (join2[p] == i) { isjoin = true; break; }
+            if (!isjoin)
+                out[k++] = (RCol){ 1, i };
+        }
+    }
+    else
+    {
+        nout = 0;
+        for (Expression_t *e = expr_list; e; e = e->next)
+            nout++;
+        out = malloc(sizeof(RCol) * nout);
+        int k = 0;
+        for (Expression_t *e = expr_list; e; e = e->next, k++)
+        {
+            if (e->t != EXPR_TERM || e->expr.term.t != TERM_COLREF ||
+                !resolve_join_column(e->expr.term.ref, cols1, name1, alias1, cols2, name2, alias2, &out[k], NULL))
+            {
+                free(out);
+                free(join1);
+                free(join2);
+                free(parsed1);
+                free(parsed2);
+                return CHIDB_EINVALIDSQL;
+            }
+        }
+    }
+
+    bool has_where = false;
+    RCol where_col = { 0, 0 };
+    opcode_t where_op = Op_Ne;
+    Literal_t *where_lit = NULL;
+
+    if (cond)
+    {
+        if (cond->t != RA_COND_EQ && cond->t != RA_COND_LT && cond->t != RA_COND_GT &&
+            cond->t != RA_COND_LEQ && cond->t != RA_COND_GEQ)
+        {
+            free(out);
+            free(join1);
+            free(join2);
+            free(parsed1);
+            free(parsed2);
+            return CHIDB_EINVALIDSQL;
+        }
+
+        Expression_t *e1 = cond->cond.comp.expr1, *e2 = cond->cond.comp.expr2;
+        Expression_t *colExpr, *valExpr;
+        bool flipped = false;
+        if (e1->t == EXPR_TERM && e1->expr.term.t == TERM_COLREF)
+        {
+            colExpr = e1;
+            valExpr = e2;
+        }
+        else if (e2->t == EXPR_TERM && e2->expr.term.t == TERM_COLREF)
+        {
+            colExpr = e2;
+            valExpr = e1;
+            flipped = true;
+        }
+        else
+        {
+            free(out);
+            free(join1);
+            free(join2);
+            free(parsed1);
+            free(parsed2);
+            return CHIDB_EINVALIDSQL;
+        }
+
+        enum data_type coltype;
+        bool resolved = valExpr->t == EXPR_TERM && valExpr->expr.term.t == TERM_LITERAL &&
+                         resolve_join_column(colExpr->expr.term.ref, cols1, name1, alias1, cols2, name2, alias2,
+                                              &where_col, &coltype);
+        where_lit = valExpr->expr.term.val;
+        if (!resolved || !literal_matches_type(where_lit, coltype))
+        {
+            free(out);
+            free(join1);
+            free(join2);
+            free(parsed1);
+            free(parsed2);
+            return CHIDB_EINVALIDSQL;
+        }
+
+        enum CondType ct = cond->t;
+        if (flipped)
+            switch (ct)
+            {
+            case RA_COND_LT: ct = RA_COND_GT; break;
+            case RA_COND_GT: ct = RA_COND_LT; break;
+            case RA_COND_LEQ: ct = RA_COND_GEQ; break;
+            case RA_COND_GEQ: ct = RA_COND_LEQ; break;
+            default: break;
+            }
+
+        switch (ct)
+        {
+        case RA_COND_EQ:  where_op = Op_Ne; break;
+        case RA_COND_GT:  where_op = Op_Le; break;
+        case RA_COND_GEQ: where_op = Op_Lt; break;
+        case RA_COND_LT:  where_op = Op_Ge; break;
+        case RA_COND_LEQ: where_op = Op_Gt; break;
+        default: break;
+        }
+        has_where = true;
+    }
+
+    /* From here on nothing else can fail, so it's safe to start emitting. */
+    int next_reg = 0;
+    int32_t r_root1 = next_reg++;
+    int32_t r_root2 = next_reg++;
+    int32_t r_lit = has_where ? next_reg++ : -1;
+    int32_t r_tmp_a = next_reg++;
+    int32_t r_tmp_b = next_reg++;
+    int32_t r_out0 = next_reg;
+    next_reg += nout;
+
+    int *patch = malloc(sizeof(int) * (npairs + 1));
+    int npatch = 0;
+
+    int pc = 0;
+    emit(stmt, &pc, Op_Integer, (int32_t) tbl1->root_page, r_root1, 0, NULL);
+    emit(stmt, &pc, Op_OpenRead, 0, r_root1, ncols1, NULL);
+    emit(stmt, &pc, Op_Integer, (int32_t) tbl2->root_page, r_root2, 0, NULL);
+    emit(stmt, &pc, Op_OpenRead, 1, r_root2, ncols2, NULL);
+
+    if (has_where)
+        emit_literal(stmt, &pc, where_lit, r_lit);
+
+    int addr_rewind0 = emit(stmt, &pc, Op_Rewind, 0, -1, 0, NULL);
+    int addr_loop1 = pc;
+    int addr_rewind1 = emit(stmt, &pc, Op_Rewind, 1, -1, 0, NULL);
+    int addr_loop2 = pc;
+
+    for (int p = 0; p < npairs; p++)
+    {
+        emit_rcol(stmt, &pc, (RCol){ 0, join1[p] }, cols1, cols2, r_tmp_a);
+        emit_rcol(stmt, &pc, (RCol){ 1, join2[p] }, cols1, cols2, r_tmp_b);
+        patch[npatch++] = emit(stmt, &pc, Op_Ne, r_tmp_a, -1, r_tmp_b, NULL);
+    }
+
+    if (has_where)
+    {
+        emit_rcol(stmt, &pc, where_col, cols1, cols2, r_tmp_a);
+        patch[npatch++] = emit(stmt, &pc, where_op, r_lit, -1, r_tmp_a, NULL);
+    }
+
+    for (int k = 0; k < nout; k++)
+        emit_rcol(stmt, &pc, out[k], cols1, cols2, r_out0 + k);
+    emit(stmt, &pc, Op_ResultRow, r_out0, nout, 0, NULL);
+
+    int addr_skip = emit(stmt, &pc, Op_Next, 1, addr_loop2, 0, NULL);
+    for (int k = 0; k < npatch; k++)
+        stmt->ops[patch[k]].p2 = addr_skip;
+
+    int addr_next0 = pc;
+    stmt->ops[addr_rewind1].p2 = addr_next0;
+    emit(stmt, &pc, Op_Next, 0, addr_loop1, 0, NULL);
+
+    int addr_end = pc;
+    stmt->ops[addr_rewind0].p2 = addr_end;
+    emit(stmt, &pc, Op_Close, 1, 0, 0, NULL);
+    emit(stmt, &pc, Op_Close, 0, 0, 0, NULL);
+    emit(stmt, &pc, Op_Halt, 0, 0, 0, NULL);
+
+    stmt->nCols = nout;
+    stmt->nRR = nout;
+    stmt->cols = malloc(sizeof(char *) * nout);
+    for (int k = 0; k < nout; k++)
+        stmt->cols[k] = strdup(column_name_at(out[k].side == 0 ? cols1 : cols2, out[k].idx));
+
+    free(patch);
+    free(out);
+    free(join1);
+    free(join2);
+    free(parsed1);
+    free(parsed2);
+    return CHIDB_OK;
+}
+
+
 /* claude: register layout mirrors testing.html's worked example
  * (`SELECT * FROM courses`): r0=table root, r1..r(nout)=output columns
  * when there's no WHERE clause. With a WHERE clause, r1=the literal
@@ -451,8 +785,10 @@ static int codegen_select(chidb_stmt *stmt, SRA_t *sra)
         cond = inner->select.cond;
         table_sra = inner->select.sra;
     }
+    if (table_sra->t == SRA_NATURAL_JOIN)
+        return codegen_select_join(stmt, table_sra, expr_list, cond);
     if (table_sra->t != SRA_TABLE)
-        return CHIDB_EINVALIDSQL; /* joins: not implemented, see file header */
+        return CHIDB_EINVALIDSQL; /* outer/theta joins, unions, etc.: not implemented */
 
     const char *table_name = table_sra->table.ref->table_name;
     chidb_schema_item_t *tbl = chidb_schema_find_table(db, table_name);

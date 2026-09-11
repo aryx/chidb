@@ -1,0 +1,14 @@
+# Test SELECT-JOIN-4
+#
+# Same tables as sql-select-join-001.dbmf. WHERE matches no department, so
+# the join (and thus the whole query) should return zero rows.
+
+USE join-courses-departments.cdb
+
+%%
+
+SELECT title FROM courses NATURAL JOIN departments WHERE name = "NoSuchDept";
+
+%%
+
+# No query results

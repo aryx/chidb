@@ -1,0 +1,10 @@
+CREATE TABLE departments(id INTEGER PRIMARY KEY, name TEXT);
+CREATE TABLE courses(code INTEGER PRIMARY KEY, title TEXT, id INTEGER);
+INSERT INTO departments VALUES(1, "Engineering");
+INSERT INTO departments VALUES(2, "Math");
+INSERT INTO departments VALUES(3, "Physics");
+INSERT INTO courses VALUES(100, "Intro to Programming", 1);
+INSERT INTO courses VALUES(200, "Calculus", 2);
+INSERT INTO courses VALUES(300, "Orphan Course", 99);
+SELECT * FROM courses NATURAL JOIN departments;
+SELECT c.title, d.name FROM courses c NATURAL JOIN departments d WHERE d.name = "Math";

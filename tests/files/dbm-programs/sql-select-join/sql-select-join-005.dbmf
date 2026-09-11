@@ -1,0 +1,15 @@
+# Test SELECT-JOIN-5
+#
+# Same tables as sql-select-join-001.dbmf. Both tables are given aliases,
+# and the WHERE clause filters on a column from the left (courses) table
+# by its primary key -- exercises Key (not Column) access inside the join.
+
+USE join-courses-departments.cdb
+
+%%
+
+SELECT c.title, d.name FROM courses c NATURAL JOIN departments d WHERE c.code = 200;
+
+%%
+
+"Calculus"  "Math"

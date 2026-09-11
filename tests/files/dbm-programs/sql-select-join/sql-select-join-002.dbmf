@@ -1,0 +1,15 @@
+# Test SELECT-JOIN-2
+#
+# Same tables as sql-select-join-001.dbmf. Projects an explicit column list
+# instead of *, one column from each side of the join.
+
+USE join-courses-departments.cdb
+
+%%
+
+SELECT title, name FROM courses NATURAL JOIN departments;
+
+%%
+
+"Intro to Programming"  "Engineering"
+"Calculus"              "Math"

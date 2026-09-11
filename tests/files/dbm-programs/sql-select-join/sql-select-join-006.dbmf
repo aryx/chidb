@@ -1,0 +1,17 @@
+# Test SELECT-JOIN-6
+#
+# Same tables as sql-select-join-001.dbmf. WHERE filters on the unqualified
+# shared join column ("id"), which is a plain (non-primary-key) column of
+# courses -- exercises Column (not Key) access on an unqualified reference
+# that resolves to the left table's copy, per resolve_join_column() in
+# codegen.c.
+
+USE join-courses-departments.cdb
+
+%%
+
+SELECT title FROM courses NATURAL JOIN departments WHERE id = 1;
+
+%%
+
+"Intro to Programming"
