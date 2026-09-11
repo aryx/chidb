@@ -228,7 +228,9 @@ pieces:
   `EXPLAIN` output confirming both.
 
 Not implemented (out of scope for this pass, in order of likely value if
-resumed):
+resumed; see [plan_extensions.md](plan_extensions.md) for effort/value
+notes on each of these plus one more item, DELETE support, not listed
+here since it was never in scope for the four assignments to begin with):
 - Index-based codegen (single-table or join) still requires the seekable
   side's *entire* pushed condition to be exactly one comparison against
   an indexed column (`=`, `>`, `>=`, `<`, or `<=`) -- `ncmp == 1` is
