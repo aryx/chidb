@@ -84,7 +84,17 @@ void indent_print(const char *format,...)
             strcat(buffer, "\t");
     }
     va_start(argptr, format);
-    vsnprintf(buffer + ind, BUF_SIZE, format, argptr);
+    /* claude: was `vsnprintf(buffer + ind, BUF_SIZE, ...)` -- BUF_SIZE is
+     * buffer's *total* size, so passing it unchanged as the room left
+     * after already having advanced the write pointer by `ind` claims
+     * `ind` bytes more space than actually remain. Harmless in a build
+     * without _FORTIFY_SOURCE (a sufficiently long formatted string would
+     * silently overflow the stack buffer instead), but glibc's
+     * __vsnprintf_chk aborts on the claim itself, before writing anything
+     * -- crashing indent_print(), and therefore every SRA_print()/
+     * RA_print() call, for any `ind >= 1` (i.e. any indented/nested
+     * print), regardless of how short the actual output is. */
+    vsnprintf(buffer + ind, BUF_SIZE - ind, format, argptr);
     va_end(argptr);
     fputs(buffer, stdout);
     fflush(stdout);
